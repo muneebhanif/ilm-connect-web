@@ -196,17 +196,17 @@ export default function Home() {
                 </Link>
               </motion.div>
               <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={4}
-                className="mt-14 flex items-center gap-6 sm:gap-10">
+                className="mt-10 grid max-w-lg grid-cols-2 gap-3 sm:mt-14 sm:grid-cols-3 sm:gap-4">
                 {[
                   { val: '100+', label: 'Teachers', icon: '👨‍🏫' },
                   { val: '1,000+', label: 'Students', icon: '📚' },
                   { val: '4.9★', label: 'Rating', icon: '⭐' },
                 ].map((s) => (
-                  <div key={s.label} className="flex items-center gap-3">
-                    <div className="text-2xl">{s.icon}</div>
+                  <div key={s.label} className="flex min-w-0 items-center gap-3 rounded-2xl border-2 border-parchment/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-sm sm:bg-transparent sm:px-0 sm:py-0 sm:border-0 sm:shadow-none">
+                    <div className="text-2xl flex-shrink-0">{s.icon}</div>
                     <div>
-                      <div className="font-display font-black text-xl text-ink">{s.val}</div>
-                      <div className="text-bark text-xs font-bold">{s.label}</div>
+                      <div className="font-display font-black text-lg leading-none text-ink sm:text-xl">{s.val}</div>
+                      <div className="mt-1 text-bark text-[11px] font-bold leading-none sm:text-xs">{s.label}</div>
                     </div>
                   </div>
                 ))}

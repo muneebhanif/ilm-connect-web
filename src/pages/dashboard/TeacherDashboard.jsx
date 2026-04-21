@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useOutletContext } from 'react-router-dom'
 import {
@@ -16,6 +16,53 @@ import { SectionRowsSkeleton, SkeletonBlock } from '../../components/skeletons.j
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const HOURS = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00']
 const LESSON_VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v', 'webm']
+const DOCUMENT_TYPES = [
+  { id: 'certificate', label: 'Teaching certificate', helper: 'Ijazah, tajweed, or teaching certificate.' },
+  { id: 'identity', label: 'Identity proof', helper: 'Passport, national ID, or driving licence.' },
+  { id: 'resume', label: 'Resume / experience', helper: 'CV, portfolio summary, or work history.' },
+]
+
+function sortHours(slots = []) {
+  return [...new Set(slots)].sort((a, b) => HOURS.indexOf(a) - HOURS.indexOf(b))
+}
+
+function normalizeAvailabilityMap(value = {}) {
+  return DAYS.reduce((acc, day) => {
+    acc[day] = sortHours(Array.isArray(value?.[day]) ? value[day] : [])
+    return acc
+  }, {})
+}
+
+function formatHourLabel(hour = '') {
+  const [raw] = String(hour).split(':')
+  const num = Number(raw)
+  if (Number.isNaN(num)) return hour
+  const suffix = num >= 12 ? 'PM' : 'AM'
+  const normalized = num % 12 || 12
+  return `${normalized}:00 ${suffix}`
+}
+
+function getVerificationTone(status = 'pending') {
+  const normalized = String(status).toLowerCase()
+  if (normalized === 'verified' || normalized === 'approved') return 'emerald'
+  if (normalized === 'rejected') return 'rose'
+  return 'gold'
+}
+
+function buildProfileChecklist(teacher = {}, documents = [], availability = {}, courses = []) {
+  const totalAvailability = Object.values(availability || {}).reduce((sum, slots) => sum + (Array.isArray(slots) ? slots.length : 0), 0)
+  return [
+    { label: 'Add your full name', done: Boolean(teacher.full_name?.trim()) },
+    { label: 'Write a teacher bio', done: Boolean(teacher.bio?.trim()) },
+    { label: 'Upload a profile photo', done: Boolean(teacher.avatar_url) },
+    { label: 'Add subjects', done: Array.isArray(teacher.subjects) && teacher.subjects.length > 0 },
+    { label: 'Add languages', done: Array.isArray(teacher.languages) && teacher.languages.length > 0 },
+    { label: 'Set your pricing', done: Boolean(Number(teacher.hourly_rate || 0) || Number(teacher.weekly_package_price || 0) || Number(teacher.monthly_package_price || 0)) },
+    { label: 'Set weekly availability', done: totalAvailability > 0 },
+    { label: 'Upload verification documents', done: Array.isArray(documents) && documents.length > 0 },
+    { label: 'Create your first course', done: Array.isArray(courses) && courses.length > 0 },
+  ]
+}
 
 function mapErr(msg = '') {
   const n = String(msg).toLowerCase()
@@ -53,6 +100,7 @@ export default function TeacherDashboard() {
   const [courseForm, setCourseForm] = useState({ id: '', title: '', description: '', subject: '', level: 'beginner', price: '', is_free: true, total_lessons: '', thumbnail_url: '' })
   const [lessonForm, setLessonForm] = useState({ title: '', description: '', content_url: '', is_preview: false })
   const [recordingForm, setRecordingForm] = useState({ sessionId: '', title: '', description: '', visibility: 'free', durationSeconds: '' })
+  const [availabilityDraft, setAvailabilityDraft] = useState(() => normalizeAvailabilityMap())
 
   const scheduleQ = useQuery({ queryKey: ['teacherSchedule', user?.id], queryFn: () => authFetch(api.teacherSchedule(user.id), token), enabled: !!user?.id && !!token })
   const studentsQ = useQuery({ queryKey: ['teacherStudents', user?.id], queryFn: () => authFetch(api.teacherStudents(user.id), token), enabled: !!user?.id && !!token })
@@ -72,10 +120,18 @@ export default function TeacherDashboard() {
   const notifications = notifsQ.data?.notifications || []
   const documents = docsQ.data?.documents || []
   const lessons = lessonsQ.data?.lessons || []
-  const availability = teacher.availability || {}
+  const availability = normalizeAvailabilityMap(teacher.availability || {})
+  const verificationStatus = docsQ.data?.verification_status || teacher.verification_status || 'pending'
+  const totalAvailabilitySlots = Object.values(availabilityDraft).reduce((sum, slots) => sum + slots.length, 0)
+  const hasAvailabilityChanges = JSON.stringify(availabilityDraft) !== JSON.stringify(availability)
+  const profileChecklist = buildProfileChecklist(teacher, documents, availability, courses)
+  const completedChecklistCount = profileChecklist.filter((item) => item.done).length
+  const profileCompletion = Math.round((completedChecklistCount / profileChecklist.length) * 100)
+  const remainingChecklist = profileChecklist.filter((item) => !item.done)
 
   useEffect(() => { if (teacher?.full_name) setProfileForm({ full_name: teacher.full_name || '', bio: teacher.bio || '', hourly_rate: teacher.hourly_rate ? String(teacher.hourly_rate) : '', weekly_package_price: teacher.weekly_package_price ? String(teacher.weekly_package_price) : '', monthly_package_price: teacher.monthly_package_price ? String(teacher.monthly_package_price) : '', subjects: Array.isArray(teacher.subjects) ? teacher.subjects.join(', ') : '', languages: Array.isArray(teacher.languages) ? teacher.languages.join(', ') : '', gender: teacher.gender || '', timezone: teacher.timezone || '', phone: teacher.phone || '' }) }, [teacher.full_name, teacher.bio, teacher.hourly_rate, teacher.weekly_package_price, teacher.monthly_package_price, teacher.subjects, teacher.languages, teacher.gender, teacher.timezone, teacher.phone])
   useEffect(() => { if (!selectedCourseId && courses.length > 0) setSelectedCourseId(courses[0].id) }, [courses, selectedCourseId])
+  useEffect(() => { setAvailabilityDraft(normalizeAvailabilityMap(teacher.availability || {})) }, [teacher.availability])
 
   // Mutations
   const updateProfile = useMutation({ mutationFn: (p) => authFetch(api.updateTeacher(user.id), token, { method: 'PUT', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Profile updated'); qc.invalidateQueries({ queryKey: ['teacherPublicProfile', user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
@@ -96,6 +152,18 @@ export default function TeacherDashboard() {
   const stripeDash = useMutation({ mutationFn: () => authFetch(api.teacherDashboardLink(), token, { method: 'POST' }), onSuccess: (d) => { if (d?.dashboardUrl) window.open(d.dashboardUrl, '_blank') } })
 
   const resetCourseForm = () => { setCourseForm({ id: '', title: '', description: '', subject: '', level: 'beginner', price: '', is_free: true, total_lessons: '', thumbnail_url: '' }); setCourseThumbnailFile(null); setCourseThumbnailPreview('') }
+  const toggleAvailabilitySlot = (day, hour) => {
+    setAvailabilityDraft((current) => {
+      const daySlots = Array.isArray(current?.[day]) ? current[day] : []
+      const nextSlots = daySlots.includes(hour)
+        ? daySlots.filter((slot) => slot !== hour)
+        : sortHours([...daySlots, hour])
+      return { ...current, [day]: nextSlots }
+    })
+  }
+  const clearAvailabilityDay = (day) => setAvailabilityDraft((current) => ({ ...current, [day]: [] }))
+  const resetAvailability = () => setAvailabilityDraft(normalizeAvailabilityMap(teacher.availability || {}))
+  const saveAvailability = () => updateProfile.mutate({ availability: availabilityDraft })
   const submitCourse = async (e) => {
     e.preventDefault()
     const p = { teacher_id: user.id, title: courseForm.title, description: courseForm.description, subject: courseForm.subject, level: courseForm.level, price: courseForm.is_free ? 0 : Number(courseForm.price || 0), is_free: courseForm.is_free, total_lessons: Number(courseForm.total_lessons || 0), thumbnail_url: courseForm.id ? courseForm.thumbnail_url || null : null }
@@ -110,6 +178,66 @@ export default function TeacherDashboard() {
   // ─── OVERVIEW ───
   if (activeTab === 'overview') return (
     <PageHeader title={`Welcome back, ${teacher.full_name || user?.full_name || 'Teacher'}`} description="Your teaching command center." actions={<Link to={`/teachers/${user?.id}`} className="inline-flex items-center gap-2 rounded-2xl border border-parchment bg-white px-5 py-3 text-sm font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Public profile <ShieldCheck size={16} /></Link>}>
+      <SectionCard>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between rounded-[28px] bg-gradient-to-r from-emerald/10 via-white to-gold/10 p-6">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-emerald shadow-sm">
+                <ShieldCheck size={22} />
+              </div>
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald">Teacher verification</div>
+                <div className="mt-1 text-xl font-bold text-ink">Keep your profile trusted and booking-ready</div>
+              </div>
+            </div>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-bark">
+              Upload your teaching certificate, identity proof, and resume so parents can trust your profile and admins can review you faster.
+            </p>
+          </div>
+          <div className="flex flex-col items-start gap-3 lg:items-end">
+            <StatusPill tone={getVerificationTone(verificationStatus)}>{verificationStatus}</StatusPill>
+            <div className="text-sm text-bark">{documents.length} document{documents.length === 1 ? '' : 's'} uploaded</div>
+            <div className="flex flex-wrap gap-2">
+              <Link to="?tab=assets" className="rounded-2xl bg-emerald px-4 py-2.5 text-sm font-semibold text-white">Open verification</Link>
+              <Link to="?tab=profile" className="rounded-2xl border border-parchment bg-white px-4 py-2.5 text-sm font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Complete profile</Link>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+      <SectionCard>
+        <div className="flex flex-col gap-5 rounded-[28px] bg-white p-1 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex-1 rounded-[24px] bg-ivory/55 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald">Profile completion</div>
+                <div className="mt-1 text-2xl font-bold text-ink">Complete your profile — {profileCompletion}%</div>
+              </div>
+              <StatusPill tone={profileCompletion >= 80 ? 'emerald' : profileCompletion >= 50 ? 'gold' : 'rose'}>{profileCompletion}% done</StatusPill>
+            </div>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-parchment/70">
+              <div className="h-full rounded-full bg-gradient-to-r from-emerald to-teal transition-all" style={{ width: `${profileCompletion}%` }} />
+            </div>
+            <p className="mt-3 text-sm text-bark">
+              Teachers with complete profiles look more trustworthy and are easier for parents to book.
+            </p>
+          </div>
+          <div className="min-w-0 flex-1 rounded-[24px] bg-emerald/5 p-5">
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald">Next steps</div>
+            <div className="mt-3 space-y-2">
+              {remainingChecklist.length === 0 ? (
+                <div className="rounded-2xl border border-emerald/20 bg-white px-4 py-3 text-sm font-semibold text-emerald">Your profile is complete. Keep it updated.</div>
+              ) : (
+                remainingChecklist.slice(0, 4).map((item) => (
+                  <div key={item.label} className="flex items-center gap-3 rounded-2xl border border-parchment/50 bg-white px-4 py-3 text-sm text-ink">
+                    <Circle size={16} className="text-bark/50" />
+                    <span>{item.label}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </SectionCard>
       <GridList cols="md:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Calendar} label="Upcoming classes" value={stats.upcomingClasses || schedule.filter(s => s.status !== 'completed').length} tone="emerald" />
         <StatCard icon={Users} label="Students" value={stats.totalStudents || students.length} tone="gold" />
@@ -190,21 +318,87 @@ export default function TeacherDashboard() {
 
   // ─── AVAILABILITY ───
   if (activeTab === 'availability') return (
-    <PageHeader title="Availability" description="Set your available time slots.">
+    <PageHeader title="Availability" description="Build a weekly teaching calendar so parents can see when you are free.">
       <SectionCard>
-        <div className="space-y-4">{DAYS.map(day => <div key={day} className="rounded-[24px] border border-parchment/50 bg-ivory/55 p-5"><div className="mb-3 flex items-center justify-between"><span className="font-semibold text-ink">{day}</span><StatusPill tone={(availability[day] || []).length > 0 ? 'emerald' : 'ink'}>{(availability[day] || []).length} slots</StatusPill></div><div className="flex flex-wrap gap-2">{HOURS.map(h => { const on = (availability[day] || []).includes(h); return <button key={h} onClick={() => { const cur = Array.isArray(availability[day]) ? availability[day] : []; const next = cur.includes(h) ? cur.filter(x => x !== h) : [...cur, h].sort(); updateProfile.mutate({ availability: { ...availability, [day]: next } }) }} className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${on ? 'bg-emerald text-white shadow-sm' : 'bg-white text-ink-soft border border-parchment/50 hover:border-emerald/30'}`}>{h}</button> })}</div></div>)}</div>
+        <div className="flex flex-col gap-4 rounded-[28px] bg-gradient-to-r from-white via-emerald/5 to-teal/10 p-5 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald">Weekly calendar</div>
+            <div className="mt-1 text-lg font-bold text-ink">Tap slots to mark when you can teach</div>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-bark">Each selected cell becomes an available hour on your public booking schedule. Save once when you are done editing.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusPill tone={totalAvailabilitySlots > 0 ? 'emerald' : 'ink'}>{totalAvailabilitySlots} total slots</StatusPill>
+            <button onClick={resetAvailability} disabled={!hasAvailabilityChanges || updateProfile.isPending} className="rounded-2xl border border-parchment bg-white px-4 py-2.5 text-sm font-semibold text-ink-soft disabled:opacity-50">Reset</button>
+            <button onClick={() => setAvailabilityDraft(normalizeAvailabilityMap())} disabled={totalAvailabilitySlots === 0 || updateProfile.isPending} className="rounded-2xl border border-rose/20 bg-rose/5 px-4 py-2.5 text-sm font-semibold text-rose disabled:opacity-50">Clear all</button>
+            <ActionButton onClick={saveAvailability} icon={Save} disabled={!hasAvailabilityChanges || updateProfile.isPending}>{updateProfile.isPending ? 'Saving...' : 'Save calendar'}</ActionButton>
+          </div>
+        </div>
+        <div className="mt-6 overflow-x-auto">
+          <div className="min-w-[980px] rounded-[28px] border border-parchment/50 bg-white p-4 shadow-sm">
+            <div className="grid grid-cols-[96px_repeat(7,minmax(120px,1fr))] gap-3">
+              <div className="rounded-2xl bg-ivory/70 px-3 py-4 text-xs font-bold uppercase tracking-[0.18em] text-bark">Time</div>
+              {DAYS.map((day) => (
+                <div key={day} className="rounded-2xl bg-ivory/70 px-3 py-4 text-center">
+                  <div className="text-sm font-bold text-ink">{day}</div>
+                  <div className="mt-1 text-xs text-bark">{availabilityDraft[day]?.length || 0} selected</div>
+                  <button onClick={() => clearAvailabilityDay(day)} disabled={(availabilityDraft[day] || []).length === 0 || updateProfile.isPending} className="mt-3 rounded-xl border border-parchment bg-white px-3 py-1.5 text-xs font-semibold text-bark disabled:opacity-50">Clear day</button>
+                </div>
+              ))}
+              {HOURS.map((hour) => (
+                <Fragment key={hour}>
+                  <div key={`${hour}-label`} className="flex items-center rounded-2xl bg-ivory/55 px-3 py-3 text-sm font-semibold text-ink-soft">{formatHourLabel(hour)}</div>
+                  {DAYS.map((day) => {
+                    const isActive = (availabilityDraft[day] || []).includes(hour)
+                    return (
+                      <button
+                        key={`${day}-${hour}`}
+                        onClick={() => toggleAvailabilitySlot(day, hour)}
+                        className={`rounded-2xl border px-3 py-3 text-left transition ${isActive ? 'border-emerald bg-emerald text-white shadow-sm' : 'border-parchment/50 bg-ivory/35 text-ink-soft hover:border-emerald/30 hover:bg-emerald/5'}`}
+                      >
+                        <div className="text-xs font-bold uppercase tracking-[0.18em] opacity-80">{day.slice(0, 3)}</div>
+                        <div className="mt-1 text-sm font-semibold">{isActive ? 'Available' : 'Unavailable'}</div>
+                      </button>
+                    )
+                  })}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        </div>
       </SectionCard>
     </PageHeader>
   )
 
   // ─── ASSETS ───
   if (activeTab === 'assets') return (
-    <PageHeader title="Assets" description="Documents, portfolio media, and recordings.">
+    <PageHeader title="Verification & media" description="Upload verification documents, showcase your work, and manage class recordings.">
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="space-y-6">
           <SectionCard title="Verification documents">
-            <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-parchment bg-ivory/60 px-4 py-5 text-sm text-bark hover:border-emerald/30 transition"><Upload size={18} className="text-emerald" /><input type="file" className="hidden" onChange={e => e.target.files?.[0] && uploadDoc.mutate({ file: e.target.files[0], documentType: 'certificate' })} /><span>{uploadDoc.isPending ? 'Uploading...' : 'Choose document'}</span></label>
-            <div className="mt-4 space-y-2">{documents.length === 0 ? <p className="text-sm text-bark">No documents.</p> : documents.map((d, i) => <div key={i} className="flex items-center justify-between rounded-2xl border border-parchment/50 bg-ivory/55 p-3"><div className="flex items-center gap-3"><FileText size={16} className="text-emerald" /><div><div className="text-sm font-semibold text-ink">{d.fileName || d.type || 'Document'}</div><div className="text-xs text-bark">{d.status || 'pending'}</div></div></div><a href={d.url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-emerald">View</a></div>)}</div>
+            <div className="rounded-[24px] bg-gradient-to-r from-emerald/10 via-white to-gold/10 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald">Verification status</div>
+                  <div className="mt-1 text-lg font-bold text-ink">{String(verificationStatus).charAt(0).toUpperCase() + String(verificationStatus).slice(1)}</div>
+                </div>
+                <StatusPill tone={getVerificationTone(verificationStatus)}>{verificationStatus}</StatusPill>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-bark">Upload all three document types to help the admin team verify your profile faster. PDF, JPG, JPEG, and PNG files are supported.</p>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {DOCUMENT_TYPES.map((docType) => (
+                <label key={docType.id} className="flex cursor-pointer items-start gap-4 rounded-[24px] border border-dashed border-parchment bg-ivory/60 px-4 py-5 text-sm text-bark transition hover:border-emerald/30">
+                  <Upload size={18} className="mt-0.5 text-emerald" />
+                  <input type="file" className="hidden" accept=".pdf,image/*" onChange={e => e.target.files?.[0] && uploadDoc.mutate({ file: e.target.files[0], documentType: docType.id })} />
+                  <div className="flex-1">
+                    <div className="font-semibold text-ink">{docType.label}</div>
+                    <div className="mt-1 text-xs leading-relaxed text-bark">{docType.helper}</div>
+                  </div>
+                  <span className="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-emerald">{uploadDoc.isPending ? 'Uploading...' : 'Upload'}</span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-5 space-y-2">{documents.length === 0 ? <p className="text-sm text-bark">No documents uploaded yet.</p> : documents.map((d, i) => <div key={i} className="flex items-center justify-between gap-3 rounded-2xl border border-parchment/50 bg-ivory/55 p-3"><div className="flex items-center gap-3"><FileText size={16} className="text-emerald" /><div><div className="text-sm font-semibold text-ink">{d.fileName || d.type || 'Document'}</div><div className="text-xs text-bark">{d.type || 'Document'} • {d.status || 'pending'}</div></div></div><div className="flex items-center gap-2"><StatusPill tone={getVerificationTone(d.status)}>{d.status || 'pending'}</StatusPill><a href={d.url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-emerald">View</a></div></div>)}</div>
           </SectionCard>
           <SectionCard title="Portfolio media">
             <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-parchment bg-ivory/60 px-4 py-5 text-sm text-bark hover:border-emerald/30 transition"><ImagePlus size={18} className="text-emerald" /><input type="file" accept="image/*,video/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadPortfolio.mutate({ file: f, mediaType: f.type.startsWith('video/') ? 'video' : 'image' }) }} /><span>{uploadPortfolio.isPending ? 'Uploading...' : 'Add image or video'}</span></label>
@@ -259,7 +453,27 @@ export default function TeacherDashboard() {
           {profileQ.isLoading ? <div className="space-y-4"><SkeletonBlock className="h-28 w-full rounded-[24px]" /><SkeletonBlock className="h-14 w-full" /></div> : <>
             <div className="mb-6 flex items-center gap-4 rounded-[24px] bg-ivory/60 p-5">
               {teacher.avatar_url ? <img src={teacher.avatar_url} alt="" className="h-20 w-20 rounded-[24px] object-cover" /> : <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-emerald/10 text-3xl font-bold text-emerald">{(teacher.full_name || 'T')[0]}</div>}
-              <div><div className="font-display text-2xl font-bold text-ink">{teacher.full_name}</div><div className="text-sm text-bark">{teacher.email}</div><div className="mt-2"><StatusPill tone={String(teacher.verification_status).toLowerCase() === 'verified' ? 'emerald' : 'gold'}>{teacher.verification_status || 'pending'}</StatusPill></div></div>
+              <div><div className="font-display text-2xl font-bold text-ink">{teacher.full_name}</div><div className="text-sm text-bark">{teacher.email}</div><div className="mt-2"><StatusPill tone={getVerificationTone(verificationStatus)}>{verificationStatus}</StatusPill></div></div>
+            </div>
+            <div className="mb-6 rounded-[24px] border border-parchment/50 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald">Profile completion</div>
+                  <div className="mt-1 text-xl font-bold text-ink">{profileCompletion}% complete</div>
+                </div>
+                <StatusPill tone={profileCompletion >= 80 ? 'emerald' : profileCompletion >= 50 ? 'gold' : 'rose'}>{completedChecklistCount}/{profileChecklist.length} done</StatusPill>
+              </div>
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-parchment/70">
+                <div className="h-full rounded-full bg-gradient-to-r from-emerald to-teal" style={{ width: `${profileCompletion}%` }} />
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {profileChecklist.map((item) => (
+                  <div key={item.label} className="flex items-center gap-3 rounded-2xl border border-parchment/40 bg-ivory/45 px-4 py-3 text-sm text-ink">
+                    {item.done ? <CheckCircle2 size={16} className="text-emerald" /> : <Circle size={16} className="text-bark/50" />}
+                    <span>{item.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
             <form className="space-y-4" onSubmit={e => { e.preventDefault(); updateProfile.mutate({ full_name: profileForm.full_name, bio: profileForm.bio, hourly_rate: Number(profileForm.hourly_rate || 0), weekly_package_price: Number(profileForm.weekly_package_price || 0), monthly_package_price: Number(profileForm.monthly_package_price || 0), subjects: profileForm.subjects.split(',').map(s => s.trim()).filter(Boolean), languages: profileForm.languages.split(',').map(s => s.trim()).filter(Boolean), gender: profileForm.gender, timezone: profileForm.timezone, phone: profileForm.phone }) }}>
               <TextInput label="Full name" value={profileForm.full_name} onChange={e => setProfileForm(p => ({ ...p, full_name: e.target.value }))} />
@@ -284,6 +498,16 @@ export default function TeacherDashboard() {
           </>}
         </SectionCard>
         <SectionCard title="Performance">
+          <div className="mb-5 rounded-[24px] border border-parchment/50 bg-ivory/55 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald">Verification</div>
+                <div className="mt-1 text-lg font-bold text-ink">Status: {verificationStatus}</div>
+              </div>
+              <StatusPill tone={getVerificationTone(verificationStatus)}>{verificationStatus}</StatusPill>
+            </div>
+            <p className="mt-2 text-sm text-bark">Use the Verification & Media tab to upload certificates and identity documents if your profile is still pending.</p>
+          </div>
           <GridList cols="sm:grid-cols-2">
             <StatCard icon={Users} label="Students" value={stats.totalStudents || students.length} tone="gold" />
             <StatCard icon={Calendar} label="Completed" value={stats.completedClasses || 0} tone="emerald" />

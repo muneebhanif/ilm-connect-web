@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth.jsx'
 import { motion } from 'framer-motion'
-import { Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle, GraduationCap, Users, BookOpen } from 'lucide-react'
+import { Mail, Lock, User, ArrowRight, AlertCircle, GraduationCap, Users, BookOpen } from 'lucide-react'
 import { happyManArt, happyMomArt } from '../lib/artwork'
 import { AuthButtonSkeleton } from '../components/skeletons.jsx'
 
@@ -21,19 +21,23 @@ export default function Signup() {
   const [password, setPassword] = useState('')
   const [studentId, setStudentId] = useState('')
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
 
   if (user?.role) return <Navigate to="/dashboard" replace />
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError(''); setSuccess(''); setLoading(true)
+    setError(''); setLoading(true)
     try {
       const body = { email, password, fullName }
       if (role === 'student') body.studentId = studentId
       await signup(role, body)
-      setSuccess('Account created! Please check your email to verify, then sign in.')
+      navigate('/login', {
+        replace: true,
+        state: {
+          signupSuccess: `Your ${role} account is ready. Please sign in to continue.`,
+        },
+      })
     } catch (err) {
       setError(err.message || 'Signup failed')
     } finally { setLoading(false) }
@@ -79,12 +83,6 @@ export default function Signup() {
               <AlertCircle size={16} /> {error}
             </div>
           )}
-          {success && (
-            <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-emerald/5 border border-emerald/20 rounded-xl text-emerald text-sm">
-              <CheckCircle size={16} /> {success}
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-ink-soft mb-1.5">Full Name</label>
@@ -121,7 +119,7 @@ export default function Signup() {
                   placeholder="Enter student ID provided by parent" />
               </div>
             )}
-            <button type="submit" disabled={loading || !!success}
+            <button type="submit" disabled={loading}
               className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-emerald text-white font-extrabold rounded-xl border-b-4 border-emerald-deep hover:brightness-110 active:border-b-0 active:mt-1 transition-all shadow-lg shadow-emerald/20 disabled:opacity-60">
               {loading ? <AuthButtonSkeleton /> : <><span>Create Account</span><ArrowRight size={16} /></>}
             </button>

@@ -43,7 +43,7 @@ const TEACHER_TABS = [
   { id: 'courses', label: 'Courses', icon: BookOpen },
   { id: 'lessons', label: 'Lessons', icon: ListVideo },
   { id: 'availability', label: 'Availability', icon: LayoutGrid },
-  { id: 'assets', label: 'Assets', icon: ImagePlus },
+  { id: 'assets', label: 'Verification & Media', icon: ImagePlus },
   { id: 'payouts', label: 'Payouts', icon: Wallet },
   { id: 'profile', label: 'Profile', icon: Settings },
   { id: 'messages', label: 'Messages', icon: MessageCircle },

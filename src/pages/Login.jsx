@@ -1,18 +1,20 @@
 import { useState } from 'react'
-import { useNavigate, Link, Navigate } from 'react-router-dom'
+import { useNavigate, Link, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth.jsx'
 import { motion } from 'framer-motion'
-import { Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react'
+import { Mail, Lock, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react'
 import { happyHijabiArt } from '../lib/artwork'
 import { AuthButtonSkeleton } from '../components/skeletons.jsx'
 
 export default function Login() {
   const { login, user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const signupSuccess = location.state?.signupSuccess || ''
 
   // Redirect if already logged in
   if (user?.role) return <Navigate to="/dashboard" replace />
@@ -53,6 +55,11 @@ export default function Login() {
           {error && (
             <div className="mb-6 flex items-center gap-2 px-4 py-3 bg-rose/5 border border-rose/20 rounded-xl text-rose text-sm">
               <AlertCircle size={16} /> {error}
+            </div>
+          )}
+          {signupSuccess && (
+            <div className="mb-6 flex items-center gap-2 px-4 py-3 bg-emerald/5 border border-emerald/20 rounded-xl text-emerald text-sm">
+              <CheckCircle size={16} /> {signupSuccess}
             </div>
           )}
 
