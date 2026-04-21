@@ -1,0 +1,204 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Nunito:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* ── IlmConnect × Lingo Design System ── */
+  --color-ivory: #F7F7F7;
+  --color-ivory-dark: #EBEBEB;
+  --color-parchment: #E5E5E5;
+  --color-sand: #AFAFAF;
+  --color-bark: #777777;
+  --color-ink: #3C3C3C;
+  --color-ink-soft: #4B4B4B;
+  --color-emerald: #58CC02;
+  --color-emerald-deep: #46A302;
+  --color-emerald-glow: #89E219;
+  --color-emerald-light: #D7FFB8;
+  --color-emerald-pale: #F0FFE0;
+  --color-teal: #1CB0F6;
+  --color-teal-deep: #1899D6;
+  --color-gold: #FFC800;
+  --color-gold-light: #FFF4CC;
+  --color-gold-muted: #E5A800;
+  --color-rose: #FF4B4B;
+  --color-rose-deep: #EA2B2B;
+  --color-slate: #64748B;
+  --color-purple: #CE82FF;
+  --color-purple-deep: #A855F7;
+  --color-purple-light: #F0DEFF;
+  --color-orange: #FF9600;
+  --color-orange-light: #FFF0D4;
+
+  --font-display: 'Nunito', system-ui, sans-serif;
+  --font-body: 'Nunito', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-arabic: 'Amiri', serif;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-ivory);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.arabic-quote {
+  font-family: var(--font-arabic);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.7;
+  color: #fff2b3;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.24);
+}
+
+.arabic-quote-soft {
+  font-family: var(--font-arabic);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.7;
+  color: #ffe082;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.24), 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.quote-panel {
+  background: linear-gradient(180deg, rgba(22, 55, 8, 0.42) 0%, rgba(22, 55, 8, 0.56) 100%);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Lingo Tactile Button Base ── */
+.btn-lingo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  border-radius: 1rem;
+  border-bottom-width: 4px;
+  border-bottom-style: solid;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+}
+.btn-lingo:active { border-bottom-width: 0; margin-top: 4px; }
+.btn-lingo:disabled { opacity: 0.5; pointer-events: none; }
+
+/* ── Lingo Card ── */
+.card-lingo {
+  background: white;
+  border-radius: 1rem;
+  border: 2px solid var(--color-parchment);
+  transition: all 0.3s ease;
+}
+.card-lingo:hover {
+  border-color: color-mix(in srgb, var(--color-emerald) 30%, transparent);
+  box-shadow: 0 8px 30px -8px color-mix(in srgb, var(--color-emerald) 15%, transparent);
+  transform: translateY(-2px);
+}
+
+/* ── Lingo Input ── */
+.input-lingo {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--color-ivory);
+  border: 2px solid var(--color-parchment);
+  border-radius: 0.875rem;
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  transition: all 0.2s ease;
+}
+.input-lingo::placeholder { color: var(--color-sand); }
+.input-lingo:focus {
+  outline: none;
+  border-color: var(--color-emerald);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-emerald) 12%, transparent);
+  background: white;
+}
+
+/* ── Skeleton Shimmer ── */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, rgba(229,229,229,0.55) 0%, rgba(245,245,245,0.9) 50%, rgba(229,229,229,0.55) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.25s linear infinite;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Playful Animations ── */
+@keyframes lingo-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-lingo-bounce { animation: lingo-bounce 2s ease-in-out infinite; }
+
+@keyframes lingo-pop {
+  0% { transform: scale(0.8); opacity: 0; }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-lingo-pop { animation: lingo-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-8px) rotate(1deg); }
+  66% { transform: translateY(-4px) rotate(-1deg); }
+}
+.animate-float { animation: float 6s ease-in-out infinite; }
+
+@keyframes breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.03); }
+}
+.animate-breathe { animation: breathe 4.8s ease-in-out infinite; }
+
+.art-breathing {
+  filter: drop-shadow(0 20px 40px rgba(60, 60, 60, 0.08));
+  transform-origin: center bottom;
+}
+
+/* ── Streak Bar ── */
+.streak-bar {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--color-parchment);
+  overflow: hidden;
+}
+.streak-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-emerald), var(--color-emerald-glow));
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Confetti Dots BG ── */
+.lingo-dots {
+  background-image: radial-gradient(circle, var(--color-emerald) 1px, transparent 1px),
+    radial-gradient(circle, var(--color-gold) 0.8px, transparent 0.8px),
+    radial-gradient(circle, var(--color-purple) 0.6px, transparent 0.6px);
+  background-size: 60px 60px, 40px 40px, 50px 50px;
+  background-position: 0 0, 20px 20px, 10px 30px;
+}
+
+/* ── Legacy ── */
+.noise-overlay::before { display: none; }
+.geo-pattern { background: none; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-ivory); }
+::-webkit-scrollbar-thumb { background: var(--color-parchment); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-sand); }
+
+/* ── Selection ── */
+::selection {
+  background: color-mix(in srgb, var(--color-emerald) 25%, transparent);
+  color: var(--color-ink);
+}
