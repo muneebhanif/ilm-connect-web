@@ -100,9 +100,9 @@ export default function About() {
           </motion.div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { initials: 'MM', name: 'Muhammad Muneeb Hanif', role: 'Founder & Product Lead' },
-              { initials: 'SM', name: 'Sayyam Mehboob', role: 'Team Member' },
-              { initials: 'HM', name: 'Haroon Mushtaq', role: 'Team Member' },
+              { initials: 'MM', name: 'Muhammad Muneeb Hanif', role: 'Founder' },
+              { initials: 'SM', name: 'Sayyam Mehboob', role: 'Founder' },
+              { initials: 'HM', name: 'Haroon Mushtaq', role: 'Founder' },
             ].map((member, index) => (
               <motion.div
                 key={member.name}
