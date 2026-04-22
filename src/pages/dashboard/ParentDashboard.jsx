@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useOutletContext } from 'react-router-dom'
 import {
@@ -36,11 +36,12 @@ function formatDate(item) {
 }
 
 export default function ParentDashboard() {
-  const { user, token } = useAuth()
+  const { user, token, signup } = useAuth()
   const qc = useQueryClient()
   const { activeTab, setActiveTab } = useOutletContext()
   const [selectedChildId, setSelectedChildId] = useState(null)
   const [childForm, setChildForm] = useState({ name: '', age: '' })
+  const [credentialForm, setCredentialForm] = useState({ email: '', password: '' })
   const [profileForm, setProfileForm] = useState({ full_name: user?.full_name || '' })
   const [reviewDrafts, setReviewDrafts] = useState({})
 
@@ -58,11 +59,49 @@ export default function ParentDashboard() {
 
   const upcoming = useMemo(() => classes.filter(c => { const r = c.scheduled_date || c.scheduled_at || c.date; return r && new Date(r) >= new Date() }), [classes])
 
+  useEffect(() => {
+    setProfileForm({ full_name: user?.full_name || '' })
+  }, [user?.full_name])
+
+  useEffect(() => {
+    if (!children.length) {
+      if (selectedChildId) setSelectedChildId(null)
+      return
+    }
+
+    const hasSelectedChild = children.some((child) => child.id === selectedChildId)
+    if (!hasSelectedChild) {
+      setSelectedChildId(children[0].id)
+    }
+  }, [children, selectedChildId])
+
+  useEffect(() => {
+    setCredentialForm({ email: '', password: '' })
+  }, [selectedChildId])
+
   const addChild = useMutation({ mutationFn: (p) => authFetch(api.addChild(user.id), token, { method: 'POST', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Child added'); setChildForm({ name: '', age: '' }); qc.invalidateQueries({ queryKey: ['parentChildren', user.id] }); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Failed to add child') })
-  const deleteChild = useMutation({ mutationFn: (id) => authFetch(api.deleteChild(user.id, id), token, { method: 'DELETE' }), onSuccess: () => { toast.success('Child removed'); qc.invalidateQueries({ queryKey: ['parentChildren', user.id] }) }, onError: (err) => toast.error(err?.message || 'Failed to remove child') })
+  const deleteChild = useMutation({ mutationFn: (id) => authFetch(api.deleteChild(user.id, id), token, { method: 'DELETE' }), onSuccess: (_, deletedChildId) => { toast.success('Child removed'); if (selectedChildId === deletedChildId) setSelectedChildId(null); qc.invalidateQueries({ queryKey: ['parentChildren', user.id] }); qc.invalidateQueries({ queryKey: ['childDetail', deletedChildId] }) }, onError: (err) => toast.error(err?.message || 'Failed to remove child') })
   const updateProfile = useMutation({ mutationFn: (p) => authFetch(api.updateParentProfile(user.id), token, { method: 'PUT', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Profile updated'); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Failed to update profile') })
   const uploadAvatar = useMutation({ mutationFn: async (f) => { const img = await fileToBase64(f); return authFetch(api.uploadProfileImage(user.id), token, { method: 'POST', body: JSON.stringify({ image: img, fileExtension: getFileExtension(f.name) }) }) }, onSuccess: () => { toast.success('Avatar uploaded'); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Upload failed') })
   const reviewMut = useMutation({ mutationFn: (p) => authFetch(api.createReview(), token, { method: 'POST', body: JSON.stringify(p) }), onSuccess: () => toast.success('Review submitted!'), onError: (err) => toast.error(err?.message || 'Failed to submit review') })
+  const createChildCredentials = useMutation({
+    mutationFn: async () => {
+      if (!selectedChild?.id) throw new Error('Select a child first')
+      return signup('student', {
+        email: credentialForm.email.trim(),
+        password: credentialForm.password,
+        fullName: selectedChild.name || selectedChild.full_name || 'Student',
+        studentId: selectedChild.id,
+      })
+    },
+    onSuccess: () => {
+      toast.success('Child credentials created successfully')
+      setCredentialForm({ email: '', password: '' })
+      qc.invalidateQueries({ queryKey: ['parentChildren', user.id] })
+      qc.invalidateQueries({ queryKey: ['childDetail', selectedChild?.id] })
+    },
+    onError: (err) => toast.error(err?.message || 'Failed to create child credentials')
+  })
 
   const fileInputClass = "block w-full rounded-2xl border border-parchment/60 bg-ivory px-4 py-3 text-sm text-bark file:mr-3 file:rounded-lg file:border-0 file:bg-emerald/10 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-emerald"
 
@@ -97,12 +136,42 @@ export default function ParentDashboard() {
             <div className="self-end"><ActionButton type="submit" disabled={addChild.isPending || !childForm.name || !childForm.age} icon={Plus}>{addChild.isPending ? 'Adding...' : 'Add'}</ActionButton></div>
           </form>
           {addChild.isError && <div className="mt-3 text-sm text-rose">{addChild.error.message}</div>}
-          <div className="mt-6 space-y-3">{children.length === 0 ? <EmptyState icon={Users} title="No children" text="Add the first child profile." /> : children.map(c => <div key={c.id} className={`flex items-center justify-between rounded-2xl border p-4 transition ${selectedChildId === c.id ? 'border-emerald bg-emerald/6' : 'border-parchment/50 bg-ivory/55'}`}><button className="flex flex-1 items-center gap-3 text-left" onClick={() => setSelectedChildId(c.id)}><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm"><UserRound size={18} className="text-emerald" /></div><div><div className="font-semibold text-ink">{c.name || c.full_name}</div><div className="text-xs text-bark">Age {c.age || '—'}</div></div></button><button onClick={() => deleteChild.mutate(c.id)} disabled={deleteChild.isPending} className="rounded-xl p-2 text-bark hover:bg-rose/10 hover:text-rose"><Trash2 size={16} /></button></div>)}</div>
+          <div className="mt-6 space-y-3">{children.length === 0 ? <EmptyState icon={Users} title="No children" text="Add the first child profile." /> : children.map(c => <div key={c.id} className={`flex items-center justify-between rounded-2xl border p-4 transition ${selectedChildId === c.id ? 'border-emerald bg-emerald/6' : 'border-parchment/50 bg-ivory/55'}`}><button className="flex flex-1 items-center gap-3 text-left" onClick={() => setSelectedChildId(c.id)}><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm"><UserRound size={18} className="text-emerald" /></div><div><div className="font-semibold text-ink">{c.name || c.full_name}</div><div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-bark"><span>Age {c.age || '—'}</span><StatusPill tone={c.profile_id ? 'emerald' : 'gold'}>{c.profile_id ? 'Login ready' : 'No login yet'}</StatusPill></div></div></button><button onClick={() => deleteChild.mutate(c.id)} disabled={deleteChild.isPending} className="rounded-xl p-2 text-bark hover:bg-rose/10 hover:text-rose"><Trash2 size={16} /></button></div>)}</div>
         </SectionCard>
         <SectionCard title="Child profile">
           {!selectedChildId ? <EmptyState icon={GraduationCap} title="Select a child" text="Choose a child to see details." /> : childDetailQ.isLoading ? <div className="space-y-4"><SkeletonBlock className="h-28 w-full rounded-[24px]" /><div className="grid grid-cols-2 gap-4"><SkeletonBlock className="h-28" /><SkeletonBlock className="h-28" /></div></div> : !selectedChild ? <EmptyState icon={AlertCircle} title="Unable to load" text="Please try again." /> : <div className="space-y-6">
             <div className="flex items-start gap-4 rounded-[24px] bg-ivory/60 p-5"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald/10 text-emerald"><GraduationCap size={24} /></div><div><div className="font-display text-2xl font-bold text-ink">{selectedChild.name}</div><div className="mt-1 text-sm text-bark">Age {selectedChild.age || '—'}</div></div></div>
             <GridList cols="grid-cols-2"><StatCard icon={Star} label="Stars" value={childProgress?.stars || 0} tone="gold" /><StatCard icon={Sparkles} label="Streak" value={childProgress?.streak || 0} tone="emerald" /><StatCard icon={BookOpen} label="Completed" value={childProgress?.completedClasses || 0} tone="teal" /><StatCard icon={Calendar} label="Upcoming" value={childProgress?.upcomingSessions?.length || 0} tone="ink" /><StatCard icon={CheckCircle2} label="Attendance" value={`${childProgress?.attendanceSummary?.attendancePercentage || 0}%`} tone="emerald" /><StatCard icon={Users} label="Classes taken" value={childProgress?.attendanceSummary?.attendedClasses || 0} tone="gold" /></GridList>
+            <SectionCard title="Attendance summary" subtitle="Track how many completed classes this child attended.">
+              <GridList cols="md:grid-cols-3">
+                <StatCard icon={CheckCircle2} label="Attendance rate" value={`${childProgress?.attendanceSummary?.attendancePercentage || 0}%`} tone="emerald" />
+                <StatCard icon={BookOpen} label="Completed classes" value={childProgress?.attendanceSummary?.totalClasses || 0} tone="teal" />
+                <StatCard icon={AlertCircle} label="Missed classes" value={childProgress?.attendanceSummary?.missedClasses || 0} tone="rose" />
+              </GridList>
+            </SectionCard>
+            <SectionCard title="Student login credentials" subtitle="Create website and mobile login details for this child.">
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4">
+                  <div className="text-sm font-semibold text-ink">Student ID</div>
+                  <div className="mt-1 break-all text-sm text-bark">{selectedChild.id}</div>
+                </div>
+                {selectedChild.profile_id ? (
+                  <div className="rounded-2xl border border-emerald/20 bg-emerald/5 p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-emerald"><CheckCircle2 size={16} /> Credentials already created</div>
+                    <p className="mt-1 text-sm text-bark">This child is already linked to a student login and can sign in on web or mobile.</p>
+                  </div>
+                ) : (
+                  <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); createChildCredentials.mutate() }}>
+                    <TextInput label="Student email" type="email" placeholder="student@example.com" value={credentialForm.email} onChange={(e) => setCredentialForm((prev) => ({ ...prev, email: e.target.value }))} />
+                    <TextInput label="Password" type="password" placeholder="Create a password" value={credentialForm.password} onChange={(e) => setCredentialForm((prev) => ({ ...prev, password: e.target.value }))} />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <ActionButton type="submit" disabled={createChildCredentials.isPending || !credentialForm.email.trim() || !credentialForm.password.trim()} icon={Plus}>{createChildCredentials.isPending ? 'Creating...' : 'Create credentials'}</ActionButton>
+                      <StatusPill tone="gold">Linked to selected child automatically</StatusPill>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </SectionCard>
             <div>
               <div className="mb-3 text-sm font-semibold text-ink-soft">Recent attendance</div>
               {(childProgress?.attendanceSummary?.recentAttendance || []).length === 0 ? (
@@ -191,6 +260,24 @@ export default function ParentDashboard() {
             <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><div className="text-sm font-semibold text-ink">Children</div><div className="mt-1 text-sm text-bark">{children.length} profile(s)</div></div>
             <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><div className="text-sm font-semibold text-ink">Classes</div><div className="mt-1 text-sm text-bark">{classes.length} total</div></div>
           </div>
+          {selectedChild ? (
+            <div className="mt-6 space-y-3 rounded-2xl border border-parchment/50 bg-ivory/55 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-ink">Selected child attendance</div>
+                  <div className="mt-1 text-sm text-bark">{selectedChild.name || selectedChild.full_name}</div>
+                </div>
+                <ActionButton type="button" tone="light" onClick={() => setActiveTab('children')}>
+                  Open child details
+                </ActionButton>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-parchment/50 bg-white p-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-bark">Attendance</div><div className="mt-2 text-2xl font-bold text-ink">{childProgress?.attendanceSummary?.attendancePercentage || 0}%</div></div>
+                <div className="rounded-2xl border border-parchment/50 bg-white p-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-bark">Taken</div><div className="mt-2 text-2xl font-bold text-ink">{childProgress?.attendanceSummary?.attendedClasses || 0}</div></div>
+                <div className="rounded-2xl border border-parchment/50 bg-white p-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-bark">Missed</div><div className="mt-2 text-2xl font-bold text-ink">{childProgress?.attendanceSummary?.missedClasses || 0}</div></div>
+              </div>
+            </div>
+          ) : null}
         </SectionCard>
       </div>
     </PageHeader>
