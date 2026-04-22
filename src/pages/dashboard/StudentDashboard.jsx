@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useOutletContext } from 'react-router-dom'
 import {
   Calendar, BookOpen, Clock3, Video, Play, GraduationCap, FileVideo, Search, Star,
-  UserCircle2, ShieldCheck, MonitorPlay,
+  UserCircle2, ShieldCheck, MonitorPlay, CheckCircle2,
 } from 'lucide-react'
 import { useAuth } from '../../lib/auth.jsx'
 import toast from 'react-hot-toast'
@@ -41,6 +41,7 @@ export default function StudentDashboard() {
 
   const student = profileQ.data?.student || {}
   const allClasses = classesQ.data?.classes || []
+  const attendance = classesQ.data?.attendance || { totalClasses: 0, attendedClasses: 0, missedClasses: 0, attendancePercentage: 0 }
   const recordings = recordingsQ.data?.recordings || []
   const upcoming = allClasses.filter(c => new Date(c.scheduled_date) > new Date())
   const completed = allClasses.filter(c => c.status === 'completed')
@@ -53,6 +54,7 @@ export default function StudentDashboard() {
         <StatCard icon={BookOpen} label="Total classes" value={allClasses.length} tone="gold" />
         <StatCard icon={FileVideo} label="Recordings" value={recordings.length} tone="teal" />
         <StatCard icon={Star} label="Completed" value={completed.length} tone="ink" />
+        <StatCard icon={CheckCircle2} label="Attendance" value={`${attendance.attendancePercentage || 0}%`} tone="emerald" />
       </GridList>
       <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <SectionCard title="Upcoming classes">
@@ -69,6 +71,17 @@ export default function StudentDashboard() {
   if (activeTab === 'classes') return (
     <PageHeader title="My Classes" description="All scheduled and completed classes.">
       <SectionCard>
+        <div className="mb-5 rounded-[24px] border border-parchment/50 bg-ivory/55 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald">Attendance overview</div>
+              <div className="mt-1 text-xl font-bold text-ink">{attendance.attendancePercentage || 0}% attendance</div>
+            </div>
+            <StatusPill tone={(attendance.attendancePercentage || 0) >= 75 ? 'emerald' : (attendance.attendancePercentage || 0) >= 50 ? 'gold' : 'rose'}>
+              {attendance.attendedClasses || 0}/{attendance.totalClasses || 0} attended
+            </StatusPill>
+          </div>
+        </div>
         {classesQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-24" /> : allClasses.length === 0 ? <EmptyState icon={GraduationCap} title="No classes" text="Enroll or book classes to see them here." /> : <div className="space-y-4">{allClasses.map(c => { const tid = c.courses?.teacher_id; const d = reviewDrafts[c.id] || { rating: 5, comment: '' }; return <div key={c.id} className="rounded-[24px] border border-parchment/50 bg-white p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="flex gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald/10 text-emerald"><Video size={18} /></div><div><div className="font-semibold text-ink">{c.courses?.title || 'Class'}</div><div className="mt-1 text-sm text-bark">Teacher: {c.courses?.teachers?.profiles?.full_name || 'Teacher'}</div><div className="mt-2 text-xs text-bark">{new Date(c.scheduled_date).toLocaleString()} • {c.duration_minutes || 60}min</div></div></div><StatusPill tone={c.status === 'completed' ? 'emerald' : c.status === 'cancelled' ? 'rose' : 'gold'}>{c.status || 'upcoming'}</StatusPill></div>{c.status === 'completed' && tid && <div className="mt-4 rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><div className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink-soft"><ShieldCheck size={15} /> Rate teacher</div><div className="grid gap-3 lg:grid-cols-[120px_1fr_auto]"><TextInput label="Rating" type="number" min="1" max="5" value={d.rating} onChange={e => setReviewDrafts(p => ({ ...p, [c.id]: { ...d, rating: e.target.value } }))} /><TextInput label="Comment" value={d.comment} onChange={e => setReviewDrafts(p => ({ ...p, [c.id]: { ...d, comment: e.target.value } }))} /><div className="flex items-end"><ActionButton onClick={() => reviewMut.mutate({ teacher_id: tid, session_id: c.id, rating: Number(d.rating), comment: d.comment })} disabled={reviewMut.isPending}>Submit</ActionButton></div></div></div>}</div> })}</div>}
       </SectionCard>
     </PageHeader>
@@ -132,6 +145,8 @@ export default function StudentDashboard() {
             <StatCard icon={ShieldCheck} label="Completed" value={completed.length} tone="gold" />
             <StatCard icon={FileVideo} label="Recordings" value={recordings.filter(r => r.can_access).length} tone="teal" />
             <StatCard icon={BookOpen} label="Classes" value={allClasses.length} tone="ink" />
+            <StatCard icon={CheckCircle2} label="Attendance" value={`${attendance.attendancePercentage || 0}%`} tone="emerald" />
+            <StatCard icon={Star} label="Taken" value={attendance.attendedClasses || 0} tone="gold" />
           </GridList>
         </SectionCard>
       </div>

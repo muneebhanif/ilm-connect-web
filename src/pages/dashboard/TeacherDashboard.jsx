@@ -243,6 +243,7 @@ export default function TeacherDashboard() {
         <StatCard icon={Users} label="Students" value={stats.totalStudents || students.length} tone="gold" />
         <StatCard icon={BookOpen} label="Courses" value={courses.length} tone="teal" />
         <StatCard icon={Star} label="Rating" value={Number(teacher.rating || 0).toFixed(1)} tone="ink" />
+        <StatCard icon={CheckCircle2} label="Attendance" value={`${stats.averageAttendance || 0}%`} tone="emerald" />
       </GridList>
       <div className="mt-8 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <SectionCard title="Upcoming schedule">
@@ -250,6 +251,11 @@ export default function TeacherDashboard() {
         </SectionCard>
         <SectionCard title="Notifications">
           {notifsQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-16" /> : notifications.length === 0 ? <EmptyState icon={Bell} title="No notifications" text="Updates will appear here." /> : <div className="space-y-3">{notifications.slice(0, 6).map(n => <div key={n.id} className="flex items-start justify-between rounded-2xl border border-parchment/50 bg-white p-4 gap-3"><div><div className="font-semibold text-ink">{n.title}</div><div className="mt-1 text-sm text-bark">{n.message}</div></div><StatusPill tone={n.type === 'system' ? 'teal' : 'gold'}>{n.type.replace('_', ' ')}</StatusPill></div>)}</div>}
+        </SectionCard>
+      </div>
+      <div className="mt-6">
+        <SectionCard title="Student attendance">
+          {studentsQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-20" /> : students.length === 0 ? <EmptyState icon={Users} title="No students yet" text="Attendance will appear here once students are enrolled." /> : <div className="space-y-3">{students.slice(0, 8).map((student) => <div key={student.id} className="flex flex-col gap-3 rounded-2xl border border-parchment/50 bg-white p-4 lg:flex-row lg:items-center lg:justify-between"><div><div className="font-semibold text-ink">{student.name || 'Student'}</div><div className="mt-1 text-sm text-bark">{student.course || 'Course pending'}</div><div className="mt-1 text-xs text-bark">Next class: {student.nextClass || '—'}</div></div><div className="flex flex-wrap items-center gap-2"><StatusPill tone={(student.attendance_summary?.percentage || 0) >= 75 ? 'emerald' : (student.attendance_summary?.percentage || 0) >= 50 ? 'gold' : 'rose'}>{student.attendance || '0% (0/0)'}</StatusPill></div></div>)}</div>}
         </SectionCard>
       </div>
     </PageHeader>
@@ -513,6 +519,7 @@ export default function TeacherDashboard() {
             <StatCard icon={Calendar} label="Completed" value={stats.completedClasses || 0} tone="emerald" />
             <StatCard icon={Star} label="Rating" value={Number(teacher.rating || 0).toFixed(1)} tone="teal" />
             <StatCard icon={BookOpen} label="Portfolio" value={(teacher.portfolio_media || []).length} tone="ink" />
+            <StatCard icon={CheckCircle2} label="Attendance" value={`${stats.averageAttendance || 0}%`} tone="emerald" />
           </GridList>
         </SectionCard>
       </div>

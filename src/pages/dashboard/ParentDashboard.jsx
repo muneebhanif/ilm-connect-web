@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useOutletContext } from 'react-router-dom'
 import {
   Users, Calendar, BookOpen, Search, Plus, Trash2, UserRound, GraduationCap, Clock3, Star, Sparkles,
-  Settings, Bell, School, AlertCircle, Video, ShieldCheck,
+  Settings, Bell, School, AlertCircle, Video, ShieldCheck, CheckCircle2,
 } from 'lucide-react'
 import { useAuth } from '../../lib/auth.jsx'
 import toast from 'react-hot-toast'
@@ -102,7 +102,25 @@ export default function ParentDashboard() {
         <SectionCard title="Child profile">
           {!selectedChildId ? <EmptyState icon={GraduationCap} title="Select a child" text="Choose a child to see details." /> : childDetailQ.isLoading ? <div className="space-y-4"><SkeletonBlock className="h-28 w-full rounded-[24px]" /><div className="grid grid-cols-2 gap-4"><SkeletonBlock className="h-28" /><SkeletonBlock className="h-28" /></div></div> : !selectedChild ? <EmptyState icon={AlertCircle} title="Unable to load" text="Please try again." /> : <div className="space-y-6">
             <div className="flex items-start gap-4 rounded-[24px] bg-ivory/60 p-5"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald/10 text-emerald"><GraduationCap size={24} /></div><div><div className="font-display text-2xl font-bold text-ink">{selectedChild.name}</div><div className="mt-1 text-sm text-bark">Age {selectedChild.age || '—'}</div></div></div>
-            <GridList cols="grid-cols-2"><StatCard icon={Star} label="Stars" value={childProgress?.stars || 0} tone="gold" /><StatCard icon={Sparkles} label="Streak" value={childProgress?.streak || 0} tone="emerald" /><StatCard icon={BookOpen} label="Completed" value={childProgress?.completedClasses || 0} tone="teal" /><StatCard icon={Calendar} label="Upcoming" value={childProgress?.upcomingSessions?.length || 0} tone="ink" /></GridList>
+            <GridList cols="grid-cols-2"><StatCard icon={Star} label="Stars" value={childProgress?.stars || 0} tone="gold" /><StatCard icon={Sparkles} label="Streak" value={childProgress?.streak || 0} tone="emerald" /><StatCard icon={BookOpen} label="Completed" value={childProgress?.completedClasses || 0} tone="teal" /><StatCard icon={Calendar} label="Upcoming" value={childProgress?.upcomingSessions?.length || 0} tone="ink" /><StatCard icon={CheckCircle2} label="Attendance" value={`${childProgress?.attendanceSummary?.attendancePercentage || 0}%`} tone="emerald" /><StatCard icon={Users} label="Classes taken" value={childProgress?.attendanceSummary?.attendedClasses || 0} tone="gold" /></GridList>
+            <div>
+              <div className="mb-3 text-sm font-semibold text-ink-soft">Recent attendance</div>
+              {(childProgress?.attendanceSummary?.recentAttendance || []).length === 0 ? (
+                <p className="text-sm text-bark">Attendance will appear after completed classes.</p>
+              ) : (
+                <div className="space-y-2">
+                  {childProgress.attendanceSummary.recentAttendance.slice(0, 5).map((item) => (
+                    <div key={item.session_id} className="flex items-center justify-between rounded-2xl border border-parchment/50 bg-white p-4">
+                      <div>
+                        <div className="font-semibold text-ink">{item.course_title || 'Class'}</div>
+                        <div className="mt-1 text-xs text-bark">{new Date(item.session_date).toLocaleDateString()}</div>
+                      </div>
+                      <StatusPill tone={item.attended ? 'emerald' : 'rose'}>{item.attended ? 'Present' : 'Absent'}</StatusPill>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div><div className="mb-3 text-sm font-semibold text-ink-soft">Enrolled courses</div>{(childProgress?.enrollments || []).length === 0 ? <p className="text-sm text-bark">No enrollments yet.</p> : childProgress.enrollments.map(e => <div key={e.id} className="mb-2 rounded-2xl border border-parchment/50 bg-white p-4"><div className="font-semibold text-ink">{e.courses?.title}</div><div className="mt-1 text-sm text-bark">Teacher: {e.courses?.profiles?.full_name}</div></div>)}</div>
           </div>}
         </SectionCard>
