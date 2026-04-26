@@ -30,13 +30,18 @@ function PageHeader({ title, description, actions, children }) {
 function getLiveClassMeta(item = {}) {
   const liveStatus = String(item.live_status || '').toLowerCase()
   const status = String(item.status || '').toLowerCase()
-  const isLive = liveStatus === 'live'
+  const startsAt = new Date(item.scheduled_date || '').getTime()
+  const endsAt = Number.isFinite(startsAt)
+    ? startsAt + Number(item.duration_minutes || 60) * 60 * 1000
+    : NaN
+  const isExpired = Number.isFinite(endsAt) && endsAt <= Date.now()
+  const isLive = liveStatus === 'live' && !isExpired
   const canJoin = isLive && status !== 'completed' && status !== 'cancelled'
 
   return {
     isLive,
     canJoin,
-    label: isLive ? 'Teacher is live now' : 'Waiting for teacher to start',
+    label: isExpired ? 'Class ended' : (isLive ? 'Teacher is live now' : 'Waiting for teacher to start'),
     tone: isLive ? 'emerald' : 'gold',
   }
 }
@@ -68,7 +73,8 @@ function groupStudentClasses(classes = []) {
     const status = String(item.status || '').toLowerCase()
     const liveMeta = getLiveClassMeta(item)
     const startsAt = getClassTimeValue(item.scheduled_date)
-    const isHistory = status === 'completed' || status === 'cancelled' || (!liveMeta.isLive && startsAt > 0 && startsAt < now)
+    const endsAt = startsAt > 0 ? startsAt + Number(item.duration_minutes || 60) * 60 * 1000 : 0
+    const isHistory = status === 'completed' || status === 'cancelled' || endsAt > 0 && endsAt <= now
 
     if (liveMeta.isLive) {
       live.push(item)

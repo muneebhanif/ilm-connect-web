@@ -59,6 +59,12 @@ function formatSessionDateLabel(value) {
   })
 }
 
+function getSessionEndTimeValue(session = {}) {
+  const startsAt = getSessionTimeValue(session.session_date)
+  if (!startsAt) return 0
+  return startsAt + Number(session.duration_minutes || 60) * 60 * 1000
+}
+
 function getScheduleGroups(sessions = []) {
   const now = Date.now()
   const live = []
@@ -69,8 +75,10 @@ function getScheduleGroups(sessions = []) {
     const status = String(session.status || '').toLowerCase()
     const liveStatus = String(session.live_status || '').toLowerCase()
     const startsAt = getSessionTimeValue(session.session_date)
-    const isLive = liveStatus === 'live' && status !== 'completed' && status !== 'cancelled'
-    const isHistory = status === 'completed' || status === 'cancelled' || liveStatus === 'ended' || (startsAt > 0 && startsAt < now && !isLive)
+    const endsAt = getSessionEndTimeValue(session)
+    const isExpired = endsAt > 0 && endsAt <= now
+    const isLive = liveStatus === 'live' && status !== 'completed' && status !== 'cancelled' && !isExpired
+    const isHistory = status === 'completed' || status === 'cancelled' || liveStatus === 'ended' || isExpired
 
     if (isLive) {
       live.push(session)
