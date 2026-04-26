@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { DateTime } from 'luxon'
@@ -56,6 +56,28 @@ function extractSlotsForDay(availability, dayName) {
   return []
 }
 
+function mapBookingErrorMessage(message = '') {
+  const normalized = String(message || '').toLowerCase().trim()
+
+  if (!normalized) return 'Something went wrong while preparing your booking.'
+  if (normalized.includes('select at least one child')) return 'Select at least one child before continuing.'
+  if (normalized.includes('choose a subject')) return 'Choose a subject before continuing.'
+  if (normalized.includes('choose a date')) return 'Choose a date before continuing.'
+  if (normalized.includes('choose a time')) return 'Choose an available time slot before continuing.'
+  if (normalized.includes('teacher is already booked')) return 'That slot has already been booked. Please choose another time.'
+  if (normalized.includes('selected slot is not available')) return 'That time slot is no longer available. Please pick another one.'
+  if (normalized.includes('teacher is not verified')) return 'This teacher cannot accept bookings yet.'
+  if (normalized.includes('payment has not been completed')) return 'Payment is not complete yet. Please finish payment first.'
+  if (normalized.includes('payment verification failed')) return 'Your payment could not be verified. Please try again.'
+  if (normalized.includes('invalid payment amount')) return 'The booking amount is invalid. Refresh the page and try again.'
+  if (normalized.includes('minimum payment amount')) return 'The amount is too small to process. Please adjust the booking.'
+  if (normalized.includes('teacher not found')) return 'This teacher profile could not be found.'
+  if (normalized.includes('invalid session') || normalized.includes('no token')) return 'Your session expired. Please sign in again.'
+  if (normalized.includes('networkerror') || normalized.includes('failed to fetch')) return 'Network error. Check your connection and try again.'
+
+  return message
+}
+
 function PaymentStep({ clientSecret, bookingLabel, onPaid, isSubmitting }) {
   const stripe = useStripe()
   const elements = useElements()
@@ -72,11 +94,14 @@ function PaymentStep({ clientSecret, bookingLabel, onPaid, isSubmitting }) {
     })
 
     if (submitError) {
-      setError(submitError.message || 'Payment could not be completed.')
+      const message = submitError.message || 'Payment could not be completed.'
+      setError(message)
+      toast.error(mapBookingErrorMessage(message))
       return
     }
 
     if (paymentIntent?.id) {
+      toast.success('Payment completed. Finalizing booking...')
       onPaid(paymentIntent.id)
     }
   }
@@ -104,6 +129,7 @@ export default function BookTeacher() {
   const [selectedPackage, setSelectedPackage] = useState('single')
   const [paymentData, setPaymentData] = useState(null)
   const [feedback, setFeedback] = useState('')
+  const queryErrorToastRef = useRef({ teacher: '', children: '' })
 
   const teacherQuery = useQuery({
     queryKey: ['teacherBookingProfile', id],
@@ -136,6 +162,30 @@ export default function BookTeacher() {
   const totalAmount = Number((unitPrice * Math.max(selectedChildIds.length, 1)).toFixed(2))
   const bookingLabel = `$${totalAmount.toFixed(2)}`
 
+  useEffect(() => {
+    setPaymentData(null)
+  }, [selectedChildIds, selectedSubject, selectedDate, selectedTime, selectedPackage])
+
+  useEffect(() => {
+    if (teacherQuery.error) {
+      const message = mapBookingErrorMessage(teacherQuery.error?.message || 'Failed to load teacher profile.')
+      if (queryErrorToastRef.current.teacher !== message) {
+        queryErrorToastRef.current.teacher = message
+        toast.error(message)
+      }
+    }
+  }, [teacherQuery.error])
+
+  useEffect(() => {
+    if (childrenQuery.error) {
+      const message = mapBookingErrorMessage(childrenQuery.error?.message || 'Failed to load children for booking.')
+      if (queryErrorToastRef.current.children !== message) {
+        queryErrorToastRef.current.children = message
+        toast.error(message)
+      }
+    }
+  }, [childrenQuery.error])
+
   const bookingMutation = useMutation({
     mutationFn: (paymentIntentId) => authFetch(api.bookings(), token, {
       method: 'POST',
@@ -154,7 +204,7 @@ export default function BookTeacher() {
       toast.success('Class booked successfully!')
       navigate('/dashboard/parent')
     },
-    onError: (err) => toast.error(err?.message || 'Failed to create booking.'),
+    onError: (err) => toast.error(mapBookingErrorMessage(err?.message || 'Failed to create booking.')),
   })
 
   const paymentIntentMutation = useMutation({
@@ -169,8 +219,11 @@ export default function BookTeacher() {
         numStudents: selectedChildIds.length,
       }),
     }),
-    onSuccess: (data) => setPaymentData(data),
-    onError: (err) => toast.error(err?.message || 'Failed to prepare payment. Please try again.'),
+    onSuccess: (data) => {
+      setPaymentData(data)
+      toast.success('Payment form is ready.')
+    },
+    onError: (err) => toast.error(mapBookingErrorMessage(err?.message || 'Failed to prepare payment. Please try again.')),
   })
 
   const verifyAndBookMutation = useMutation({
@@ -182,7 +235,10 @@ export default function BookTeacher() {
       if (!verification?.verified) throw new Error('Payment verification failed.')
       return bookingMutation.mutateAsync(paymentIntentId)
     },
+    onError: (err) => toast.error(mapBookingErrorMessage(err?.message || 'Payment verification failed.')),
   })
+
+  const isBusy = paymentIntentMutation.isPending || verifyAndBookMutation.isPending || bookingMutation.isPending
 
   const validateSelection = () => {
     if (selectedChildIds.length === 0) return 'Select at least one child.'
@@ -195,18 +251,59 @@ export default function BookTeacher() {
   const startBooking = async () => {
     const validation = validateSelection()
     setFeedback(validation)
-    if (validation) return
-
-    if (totalAmount <= 0) {
-      await bookingMutation.mutateAsync(null)
+    if (validation) {
+      toast.error(mapBookingErrorMessage(validation))
       return
     }
 
-    await paymentIntentMutation.mutateAsync()
+    if (isBusy) return
+
+    try {
+      if (totalAmount <= 0) {
+        toast.loading('Creating free booking...', { id: 'booking-submit' })
+        await bookingMutation.mutateAsync(null)
+        toast.dismiss('booking-submit')
+        return
+      }
+
+      toast.loading('Preparing secure payment...', { id: 'booking-submit' })
+      await paymentIntentMutation.mutateAsync()
+      toast.dismiss('booking-submit')
+    } catch (error) {
+      toast.dismiss('booking-submit')
+    }
   }
 
   if (teacherQuery.isLoading || childrenQuery.isLoading) {
     return <BookingPageSkeleton />
+  }
+
+  const teacherOrChildrenFailed = teacherQuery.isError || childrenQuery.isError
+
+  if (teacherOrChildrenFailed) {
+    return (
+      <div className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-emerald-pale/25 via-ivory to-ivory" />
+        <div className="relative">
+          <DashboardShell
+            badge="Live booking"
+            title="Booking unavailable"
+            description="We could not load the teacher or child booking details right now."
+            actions={<Link to={`/teachers/${id}`} className="inline-flex items-center gap-2 rounded-2xl border border-parchment bg-white/92 px-5 py-3 text-sm font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald"><ArrowLeft size={16} /> Back to profile</Link>}
+          >
+            <SectionCard title="Try again">
+              <div className="rounded-[24px] border border-rose/20 bg-rose/5 px-5 py-4 text-sm text-rose">
+                Booking data could not be loaded. Retry the failed request below.
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button onClick={() => teacherQuery.refetch()} className="rounded-xl border border-parchment/60 bg-white px-4 py-2 font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Retry teacher profile</button>
+                <button onClick={() => childrenQuery.refetch()} className="rounded-xl border border-parchment/60 bg-white px-4 py-2 font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Retry children</button>
+              </div>
+            </SectionCard>
+          </DashboardShell>
+        </div>
+      </div>
+    )
   }
 
   if (!teacher?.id) {
@@ -249,7 +346,7 @@ export default function BookTeacher() {
                   {children.map((child) => {
                     const active = selectedChildIds.includes(child.id)
                     return (
-                      <button key={child.id} onClick={() => setSelectedChildIds((prev) => active ? prev.filter((item) => item !== child.id) : [...prev, child.id])} className={`rounded-2xl border p-4 text-left ${active ? 'border-emerald bg-emerald/6' : 'border-parchment/50 bg-white'}`}>
+                      <button key={child.id} onClick={() => { setFeedback(''); setSelectedChildIds((prev) => active ? prev.filter((item) => item !== child.id) : [...prev, child.id]) }} className={`rounded-2xl border p-4 text-left ${active ? 'border-emerald bg-emerald/6' : 'border-parchment/50 bg-white'}`}>
                         <div className="font-semibold text-ink">{child.name || child.full_name}</div>
                         <div className="mt-1 text-xs text-bark">Age {child.age || '—'}</div>
                       </button>
@@ -264,7 +361,7 @@ export default function BookTeacher() {
                 <div className="mb-3 text-sm font-semibold text-ink-soft">Subject</div>
                 <div className="flex flex-wrap gap-2">
                   {subjectOptions.map((subject) => (
-                    <button key={subject} onClick={() => setSelectedSubject(subject)} className={`rounded-xl px-4 py-2 text-sm font-semibold ${selectedSubject === subject ? 'bg-emerald text-white' : 'border border-parchment/50 bg-white text-ink-soft'}`}>
+                    <button key={subject} onClick={() => { setFeedback(''); setSelectedSubject(subject) }} className={`rounded-xl px-4 py-2 text-sm font-semibold ${selectedSubject === subject ? 'bg-emerald text-white' : 'border border-parchment/50 bg-white text-ink-soft'}`}>
                       {subject}
                     </button>
                   ))}
@@ -278,7 +375,7 @@ export default function BookTeacher() {
                     { id: 'weekly', label: 'Weekly bundle', note: '4 sessions', price: getPackageUnitPrice(teacher, 'weekly') },
                     { id: 'monthly', label: 'Monthly plan', note: '12 sessions', price: getPackageUnitPrice(teacher, 'monthly') },
                   ].map((pkg) => (
-                    <button key={pkg.id} onClick={() => setSelectedPackage(pkg.id)} className={`rounded-2xl border p-4 text-left ${selectedPackage === pkg.id ? 'border-emerald bg-emerald/6' : 'border-parchment/50 bg-white'}`}>
+                    <button key={pkg.id} onClick={() => { setFeedback(''); setSelectedPackage(pkg.id) }} className={`rounded-2xl border p-4 text-left ${selectedPackage === pkg.id ? 'border-emerald bg-emerald/6' : 'border-parchment/50 bg-white'}`}>
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <div className="font-semibold text-ink">{pkg.label}</div>
@@ -299,7 +396,7 @@ export default function BookTeacher() {
               <div className="mb-3 text-sm font-semibold text-ink-soft">Date</div>
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {dates.map((date) => (
-                  <button key={date.toISODate()} onClick={() => { setSelectedDate(date.toISODate()); setSelectedTime('') }} className={`rounded-2xl border p-4 text-left ${selectedDate === date.toISODate() ? 'border-emerald bg-emerald/6' : 'border-parchment/50 bg-white'}`}>
+                  <button key={date.toISODate()} onClick={() => { setFeedback(''); setSelectedDate(date.toISODate()); setSelectedTime('') }} className={`rounded-2xl border p-4 text-left ${selectedDate === date.toISODate() ? 'border-emerald bg-emerald/6' : 'border-parchment/50 bg-white'}`}>
                     <div className="font-semibold text-ink">{date.toFormat('ccc, dd LLL')}</div>
                     <div className="mt-1 text-xs text-bark">{date.toRelativeCalendar() || date.toFormat('DD')}</div>
                   </button>
@@ -314,7 +411,7 @@ export default function BookTeacher() {
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {availableSlots.map((slot) => (
-                    <button key={slot} onClick={() => setSelectedTime(slot)} className={`rounded-xl px-4 py-2 text-sm font-semibold ${selectedTime === slot ? 'bg-emerald text-white' : 'border border-parchment/50 bg-white text-ink-soft'}`}>
+                    <button key={slot} onClick={() => { setFeedback(''); setSelectedTime(slot) }} className={`rounded-xl px-4 py-2 text-sm font-semibold ${selectedTime === slot ? 'bg-emerald text-white' : 'border border-parchment/50 bg-white text-ink-soft'}`}>
                       {slot}
                     </button>
                   ))}
@@ -340,11 +437,12 @@ export default function BookTeacher() {
             <div className="space-y-3 text-sm text-bark">
               <div className="flex items-start gap-2"><Calendar size={16} className="mt-0.5 text-emerald" /> Scheduling respects the teacher's timezone.</div>
               <div className="flex items-start gap-2"><ShieldCheck size={16} className="mt-0.5 text-emerald" /> Payments are securely processed and verified before confirming.</div>
+              {paymentData ? <div className="flex items-start gap-2"><Sparkles size={16} className="mt-0.5 text-emerald" /> If you change date, time, subject, package, or children, payment will refresh automatically.</div> : null}
             </div>
 
             {!paymentData ? (
-              <ActionButton onClick={startBooking} icon={CheckCircle2} disabled={paymentIntentMutation.isPending || bookingMutation.isPending || children.length === 0}>
-                {paymentIntentMutation.isPending || bookingMutation.isPending ? 'Preparing...' : totalAmount > 0 ? 'Continue to payment' : 'Confirm free booking'}
+              <ActionButton onClick={startBooking} icon={CheckCircle2} disabled={isBusy || children.length === 0 || teacherOrChildrenFailed}>
+                {isBusy ? 'Preparing...' : totalAmount > 0 ? 'Continue to payment' : 'Confirm free booking'}
               </ActionButton>
             ) : stripePromise ? (
               <Elements stripe={stripePromise} options={{ clientSecret: paymentData.clientSecret, appearance: { theme: 'stripe' } }}>
@@ -355,7 +453,7 @@ export default function BookTeacher() {
             )}
 
             {(paymentIntentMutation.error || verifyAndBookMutation.error || bookingMutation.error) ? (
-              <div className="text-sm text-rose">{paymentIntentMutation.error?.message || verifyAndBookMutation.error?.message || bookingMutation.error?.message}</div>
+              <div className="text-sm text-rose">{mapBookingErrorMessage(paymentIntentMutation.error?.message || verifyAndBookMutation.error?.message || bookingMutation.error?.message)}</div>
             ) : null}
 
 
