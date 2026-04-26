@@ -29,7 +29,7 @@ export default function ClassRoom() {
   const [chatOpen, setChatOpen] = useState(false)
   const [chatInput, setChatInput] = useState('')
   const [chatMessages, setChatMessages] = useState([])
-  const [remoteUids, setRemoteUids] = useState([])
+  const [remoteParticipants, setRemoteParticipants] = useState([])
   const [elapsed, setElapsed] = useState(0)
 
   const clientRef = useRef(null)
@@ -73,7 +73,7 @@ export default function ClassRoom() {
     clientRef.current = null
     dataStreamRef.current = null
     setJoined(false)
-    setRemoteUids([])
+    setRemoteParticipants([])
   }, [])
 
   useEffect(() => () => { void cleanup() }, [cleanup])
@@ -91,9 +91,10 @@ export default function ClassRoom() {
 
   // Play remote videos
   useEffect(() => {
-    if (!joined || !remoteUids.length) return
+    const videoParticipants = remoteParticipants.filter((participant) => participant.hasVideo)
+    if (!joined || !videoParticipants.length) return
     const t = setTimeout(() => {
-      remoteUids.forEach((uid) => {
+      videoParticipants.forEach(({ uid }) => {
         const ru = clientRef.current?.remoteUsers?.find((u) => String(u.uid) === String(uid))
         if (ru?.videoTrack) {
           const el = document.getElementById(`remote-player-${uid}`)
@@ -102,10 +103,27 @@ export default function ClassRoom() {
       })
     }, 100)
     return () => clearTimeout(t)
-  }, [remoteUids, joined])
+  }, [remoteParticipants, joined])
 
-  const addRemote = (uid) => setRemoteUids((p) => p.includes(uid) ? p : [...p, uid])
-  const removeRemote = (uid) => setRemoteUids((p) => p.filter((x) => x !== uid))
+  const upsertRemoteParticipant = (uid, patch = {}) => {
+    const normalizedUid = Number(uid) || uid
+    setRemoteParticipants((previous) => {
+      const existing = previous.find((item) => String(item.uid) === String(normalizedUid))
+      if (!existing) {
+        return [...previous, { uid: normalizedUid, hasVideo: false, hasAudio: false, ...patch }]
+      }
+      return previous.map((item) => (
+        String(item.uid) === String(normalizedUid)
+          ? { ...item, ...patch, uid: normalizedUid }
+          : item
+      ))
+    })
+  }
+
+  const removeRemoteParticipant = (uid) => {
+    const normalizedUid = Number(uid) || uid
+    setRemoteParticipants((previous) => previous.filter((item) => String(item.uid) !== String(normalizedUid)))
+  }
 
   const joinClass = async () => {
     if (!id || !user?.id) return
@@ -138,17 +156,33 @@ export default function ClassRoom() {
       const handlePublished = async (remoteUser, mediaType) => {
         try {
           if (client.connectionState !== 'CONNECTED') return
+          upsertRemoteParticipant(remoteUser.uid, {
+            hasVideo: mediaType === 'video' ? true : Boolean(remoteUser.hasVideo),
+            hasAudio: mediaType === 'audio' ? true : Boolean(remoteUser.hasAudio),
+          })
           await client.subscribe(remoteUser, mediaType)
           if (mediaType === 'audio') remoteUser.audioTrack?.play()
-          if (mediaType === 'video') addRemote(Number(remoteUser.uid) || remoteUser.uid)
         } catch (e) { console.warn('Subscribe error:', e) }
       }
+      client.on('user-joined', (remoteUser) => {
+        upsertRemoteParticipant(remoteUser.uid, {
+          hasVideo: Boolean(remoteUser.hasVideo),
+          hasAudio: Boolean(remoteUser.hasAudio),
+        })
+      })
       client.on('user-published', handlePublished)
-      client.on('user-unpublished', (ru, mt) => { if (mt === 'video') removeRemote(Number(ru.uid) || ru.uid) })
-      client.on('user-left', (ru) => removeRemote(Number(ru.uid) || ru.uid))
+      client.on('user-unpublished', (ru, mt) => {
+        if (mt === 'video') {
+          upsertRemoteParticipant(ru.uid, { hasVideo: false, hasAudio: Boolean(ru.hasAudio) })
+        }
+        if (mt === 'audio') {
+          upsertRemoteParticipant(ru.uid, { hasAudio: false, hasVideo: Boolean(ru.hasVideo) })
+        }
+      })
+      client.on('user-left', (ru) => removeRemoteParticipant(ru.uid))
       client.on('token-privilege-will-expire', async () => {
         try {
-          const r = await authFetch(api.agoraToken(id, user.id, role), token)
+          const r = await authFetch(api.agoraToken(id, user.id, role, joinUid), token)
           if (r?.token) await client.renewToken(r.token)
         } catch {}
       })
@@ -166,6 +200,10 @@ export default function ClassRoom() {
 
       // Subscribe existing users
       for (const ru of client.remoteUsers || []) {
+        upsertRemoteParticipant(ru.uid, {
+          hasVideo: Boolean(ru.hasVideo),
+          hasAudio: Boolean(ru.hasAudio),
+        })
         if (ru.hasVideo) await handlePublished(ru, 'video')
         if (ru.hasAudio) await handlePublished(ru, 'audio')
       }
@@ -313,15 +351,16 @@ export default function ClassRoom() {
         <h3 className="max-w-xs truncate text-sm font-semibold text-white/80">{session?.subject || 'Live Class'}</h3>
         <div className="flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1">
           <Users size={13} className="text-white/40" />
-          <span className="text-xs font-semibold text-white/50">{1 + remoteUids.length}</span>
+          <span className="text-xs font-semibold text-white/50">{1 + remoteParticipants.length}</span>
         </div>
       </div>
 
       {/* Video area */}
       <div className="relative flex-1">
         {/* Remote videos */}
-        <div className="absolute inset-0 flex items-center justify-center bg-[#0B1120]">
-          {remoteUids.length === 0 ? (
+        <div className="absolute inset-0 bg-[#0B1120] p-4 md:p-6">
+          {remoteParticipants.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/5 border border-white/8">
                 <span className="text-3xl">👤</span>
@@ -332,10 +371,27 @@ export default function ClassRoom() {
                 <span className="text-xs font-semibold text-emerald">Connected</span>
               </div>
             </div>
+            </div>
           ) : (
-            remoteUids.map((uid) => (
-              <div key={uid} id={`remote-player-${uid}`} className="absolute inset-0" style={{ background: '#111827' }} />
-            ))
+            <div className={`grid h-full gap-4 ${remoteParticipants.length === 1 ? 'grid-cols-1' : remoteParticipants.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
+              {remoteParticipants.map((participant) => (
+                <div key={participant.uid} className="relative overflow-hidden rounded-[28px] border border-white/8 bg-[#111827] shadow-xl">
+                  <div id={`remote-player-${participant.uid}`} className={`absolute inset-0 ${participant.hasVideo ? '' : 'hidden'}`} style={{ background: '#111827' }} />
+                  {!participant.hasVideo && (
+                    <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-3 bg-gradient-to-b from-[#111827] to-[#0F172A] text-white/80">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/5 text-2xl font-bold">
+                        {String(participant.uid).charAt(0).toUpperCase()}
+                      </div>
+                      <div className="text-sm font-semibold">Participant connected</div>
+                      <div className="text-xs text-white/40">Camera is off or still connecting</div>
+                    </div>
+                  )}
+                  <div className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs font-semibold text-white/80 backdrop-blur">
+                    Participant {participant.uid}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
