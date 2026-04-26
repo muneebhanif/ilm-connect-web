@@ -17,6 +17,7 @@ import ParentDashboard from './pages/dashboard/ParentDashboard'
 import TeacherDashboard from './pages/dashboard/TeacherDashboard'
 import StudentDashboard from './pages/dashboard/StudentDashboard'
 import AdminDashboard from './pages/dashboard/AdminDashboard'
+import PublicTestClass from './pages/PublicTestClass'
 import { AppShellSkeleton } from './components/skeletons.jsx'
 
 const ClassRoom = lazy(() => import('./pages/ClassRoom'))
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/test-class" element={<PublicTestClass />} />
       </Route>
 
       {/* Dashboard (separate layout with sidebar) */}

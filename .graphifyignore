@@ -1,0 +1,10 @@
+# Graphify exclusions
+node_modules/
+dist/
+dist-ssr/
+coverage/
+.graphifyignore
+graphify-out/
+.github/
+.vscode/
+*.log

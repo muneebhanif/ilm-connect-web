@@ -69,6 +69,7 @@ export const api = {
   createReview: () => `${API_URL}/api/reviews`,
   forgotPassword: () => `${API_URL}/api/forgot-password`,
   agoraToken: (sessionId, userId, role) => `${API_URL}/api/agora?channel=${encodeURIComponent(sessionId)}&uid=${encodeURIComponent(userId)}&role=${encodeURIComponent(role)}`,
+  agoraTestToken: (uid, role = 'STUDENT', channel = 'ilmconnect-web-test-room') => `${API_URL}/api/agora/test-token?uid=${encodeURIComponent(uid)}&role=${encodeURIComponent(role)}&channel=${encodeURIComponent(channel)}`,
   classSession: (id) => `${API_URL}/api/bookings/class-session/${id}/window`,
   teacherConnectStatus: () => `${API_URL}/api/payments/teacher/connect-status`,
   teacherConnectOnboarding: () => `${API_URL}/api/payments/teacher/connect-onboarding`,

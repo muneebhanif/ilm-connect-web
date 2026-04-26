@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../lib/auth.jsx'
 import { api, authFetch } from '../lib/api.js'
-import { Menu, X, ArrowRight, LayoutDashboard, LogOut, MessageCircle } from 'lucide-react'
+import { Menu, X, ArrowRight, LayoutDashboard, LogOut, MessageCircle, Video } from 'lucide-react'
 
 const navLinks = [
   { to: '/', label: 'Home' },
@@ -67,6 +67,10 @@ export default function Navbar() {
             <div className="flex items-center gap-3">
               {user ? (
                 <div className="hidden md:flex items-center gap-2">
+                  <Link to="/test-class"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold rounded-xl border-2 border-parchment bg-white text-ink-soft hover:border-emerald/30 hover:text-emerald transition-all">
+                    <Video size={16} /> Test Class
+                  </Link>
                   <Link to="/dashboard"
                     className="relative inline-flex items-center gap-2 px-5 py-2.5 bg-emerald text-white text-sm font-extrabold rounded-xl border-b-4 border-emerald-deep hover:brightness-110 active:border-b-0 active:mt-1 transition-all shadow-md shadow-emerald/20">
                     <LayoutDashboard size={16} />
@@ -80,6 +84,10 @@ export default function Navbar() {
                 </div>
               ) : (
                 <div className="hidden md:flex items-center gap-2">
+                  <Link to="/test-class"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold rounded-xl border-2 border-parchment bg-white text-ink-soft hover:border-emerald/30 hover:text-emerald transition-all">
+                    <Video size={16} /> Test Class
+                  </Link>
                   <Link to="/login"
                     className="px-5 py-2.5 text-ink-soft text-sm font-extrabold rounded-xl border-2 border-transparent hover:text-emerald hover:bg-emerald/5 hover:border-emerald/20 transition-all">
                     Sign In
@@ -110,6 +118,7 @@ export default function Navbar() {
                   {link.label}
                 </Link>
               ))}
+              <Link to="/test-class" className="block px-4 py-3 rounded-xl text-base font-bold text-ink-soft hover:text-emerald hover:bg-emerald/5">Test Class</Link>
               {user ? (
                 <>
                   <Link to="/dashboard" className="block px-4 py-3 rounded-xl text-base font-bold text-emerald bg-emerald/5">Dashboard</Link>

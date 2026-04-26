@@ -191,9 +191,16 @@ export default function Home() {
                 <Link to="/teachers" className="inline-flex items-center gap-2.5 px-8 py-4 bg-emerald text-white text-base font-extrabold rounded-2xl border-b-[5px] border-emerald-deep hover:brightness-110 active:border-b-0 active:mt-[5px] transition-all shadow-lg shadow-emerald/25">
                   Browse Teachers <ArrowRight size={18} />
                 </Link>
+                <Link to="/test-class" className="inline-flex items-center gap-2 px-8 py-4 bg-white border-2 border-parchment border-b-[5px] text-ink font-extrabold rounded-2xl hover:border-emerald/30 hover:text-emerald active:border-b-2 active:mt-[3px] transition-all">
+                  Join Test Class <PlayCircle size={18} />
+                </Link>
                 <Link to="/courses" className="inline-flex items-center gap-2 px-8 py-4 bg-white border-2 border-parchment border-b-[5px] text-ink font-extrabold rounded-2xl hover:border-emerald/30 hover:text-emerald active:border-b-2 active:mt-[3px] transition-all">
                   Explore Courses
                 </Link>
+              </motion.div>
+              <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={3.5} className="mt-4 inline-flex max-w-xl items-start gap-3 rounded-2xl border-2 border-emerald/15 bg-white/90 px-4 py-3 text-sm text-bark shadow-sm">
+                <Zap size={18} className="mt-0.5 shrink-0 text-emerald" />
+                <span>Need a quick live-class check? Use the web test class to join instantly as a teacher or student without a booking.</span>
               </motion.div>
               <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={4}
                 className="mt-10 grid max-w-lg grid-cols-2 gap-3 sm:mt-14 sm:grid-cols-3 sm:gap-4">

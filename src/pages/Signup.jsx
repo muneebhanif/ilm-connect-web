@@ -2,14 +2,13 @@ import { useState } from 'react'
 import { useNavigate, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth.jsx'
 import { motion } from 'framer-motion'
-import { Mail, Lock, User, ArrowRight, AlertCircle, GraduationCap, Users, BookOpen } from 'lucide-react'
+import { Mail, Lock, User, ArrowRight, AlertCircle, GraduationCap, Users, Info } from 'lucide-react'
 import { happyManArt, happyMomArt } from '../lib/artwork'
 import { AuthButtonSkeleton } from '../components/skeletons.jsx'
 
 const roles = [
   { key: 'parent', label: 'Parent', icon: Users, desc: 'Book classes for your children' },
   { key: 'teacher', label: 'Teacher', icon: GraduationCap, desc: 'Teach and manage courses' },
-  { key: 'student', label: 'Student', icon: BookOpen, desc: 'Join classes and learn' },
 ]
 
 export default function Signup() {
@@ -19,7 +18,6 @@ export default function Signup() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [studentId, setStudentId] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -30,7 +28,6 @@ export default function Signup() {
     setError(''); setLoading(true)
     try {
       const body = { email, password, fullName }
-      if (role === 'student') body.studentId = studentId
       await signup(role, body)
       navigate('/login', {
         replace: true,
@@ -68,7 +65,7 @@ export default function Signup() {
           </div>
 
           {/* Role selector */}
-          <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="grid grid-cols-2 gap-3 mb-4">
             {roles.map(r => (
               <button key={r.key} onClick={() => setRole(r.key)}
                 className={`p-4 rounded-xl border-2 text-center transition-all ${role === r.key ? 'border-emerald bg-emerald/5 border-b-4 border-b-emerald-deep shadow-md' : 'border-parchment hover:border-emerald/30 border-b-4 border-b-parchment'}`}>
@@ -76,6 +73,13 @@ export default function Signup() {
                 <div className={`text-xs font-extrabold ${role === r.key ? 'text-emerald' : 'text-ink-soft'}`}>{r.label}</div>
               </button>
             ))}
+          </div>
+
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-900">
+            <Info size={18} className="mt-0.5 shrink-0" />
+            <p>
+              Student self-registration has been removed. Parents now create student credentials from the parent dashboard.
+            </p>
           </div>
 
           {error && (
@@ -111,14 +115,6 @@ export default function Signup() {
                   placeholder="Min 6 characters" />
               </div>
             </div>
-            {role === 'student' && (
-              <div>
-                <label className="block text-sm font-medium text-ink-soft mb-1.5">Student ID (from parent account)</label>
-                <input type="text" value={studentId} onChange={e => setStudentId(e.target.value)} required
-                  className="w-full px-4 py-3 bg-ivory rounded-xl text-sm text-ink placeholder:text-sand focus:outline-none focus:ring-2 focus:ring-emerald/20 border border-parchment/50"
-                  placeholder="Enter student ID provided by parent" />
-              </div>
-            )}
             <button type="submit" disabled={loading}
               className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-emerald text-white font-extrabold rounded-xl border-b-4 border-emerald-deep hover:brightness-110 active:border-b-0 active:mt-1 transition-all shadow-lg shadow-emerald/20 disabled:opacity-60">
               {loading ? <AuthButtonSkeleton /> : <><span>Create Account</span><ArrowRight size={16} /></>}
