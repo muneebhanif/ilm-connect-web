@@ -68,7 +68,7 @@ export const api = {
   unreadCount: () => `${API_URL}/api/messages/unread-count`,
   createReview: () => `${API_URL}/api/reviews`,
   forgotPassword: () => `${API_URL}/api/forgot-password`,
-  agoraToken: (sessionId, userId, role) => `${API_URL}/api/agora?channel=${encodeURIComponent(sessionId)}&uid=${encodeURIComponent(userId)}&role=${encodeURIComponent(role)}`,
+  agoraToken: (sessionId, userId, role, agoraUid) => `${API_URL}/api/agora?channel=${encodeURIComponent(sessionId)}&uid=${encodeURIComponent(userId)}&role=${encodeURIComponent(role)}${typeof agoraUid === 'number' ? `&agoraUid=${encodeURIComponent(String(agoraUid))}` : ''}`,
   classSession: (id) => `${API_URL}/api/bookings/class-session/${id}/window`,
   teacherConnectStatus: () => `${API_URL}/api/payments/teacher/connect-status`,
   teacherConnectOnboarding: () => `${API_URL}/api/payments/teacher/connect-onboarding`,

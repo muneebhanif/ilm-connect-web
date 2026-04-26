@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useOutletContext } from 'react-router-dom'
 import {
@@ -40,6 +40,54 @@ function formatHourLabel(hour = '') {
   const suffix = num >= 12 ? 'PM' : 'AM'
   const normalized = num % 12 || 12
   return `${normalized}:00 ${suffix}`
+}
+
+function getSessionTimeValue(value) {
+  const parsed = new Date(value || '').getTime()
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function formatSessionDateLabel(value) {
+  const parsed = new Date(value || '')
+  if (Number.isNaN(parsed.getTime())) return 'Date not available'
+  return parsed.toLocaleString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function getScheduleGroups(sessions = []) {
+  const now = Date.now()
+  const live = []
+  const upcoming = []
+  const history = []
+
+  sessions.forEach((session) => {
+    const status = String(session.status || '').toLowerCase()
+    const liveStatus = String(session.live_status || '').toLowerCase()
+    const startsAt = getSessionTimeValue(session.session_date)
+    const isLive = liveStatus === 'live' && status !== 'completed' && status !== 'cancelled'
+    const isHistory = status === 'completed' || status === 'cancelled' || liveStatus === 'ended' || (startsAt > 0 && startsAt < now && !isLive)
+
+    if (isLive) {
+      live.push(session)
+      return
+    }
+    if (isHistory) {
+      history.push(session)
+      return
+    }
+    upcoming.push(session)
+  })
+
+  live.sort((a, b) => getSessionTimeValue(a.session_date) - getSessionTimeValue(b.session_date))
+  upcoming.sort((a, b) => getSessionTimeValue(a.session_date) - getSessionTimeValue(b.session_date))
+  history.sort((a, b) => getSessionTimeValue(b.session_date) - getSessionTimeValue(a.session_date))
+
+  return { live, upcoming, history }
 }
 
 function getVerificationTone(status = 'pending') {
@@ -114,6 +162,8 @@ export default function TeacherDashboard() {
   const teacher = normalizeTeacherProfileResponse(profileQ.data || {}, user?.id)
   const stats = teacher.stats || {}
   const schedule = scheduleQ.data?.sessions || []
+  const scheduleGroups = useMemo(() => getScheduleGroups(schedule), [schedule])
+  const schedulePriorityList = [...scheduleGroups.live, ...scheduleGroups.upcoming]
   const completedClasses = schedule.filter(s => s.status === 'completed')
   const students = studentsQ.data?.students || []
   const courses = coursesQ.data?.courses || []
@@ -247,7 +297,7 @@ export default function TeacherDashboard() {
       </GridList>
       <div className="mt-8 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <SectionCard title="Upcoming schedule">
-          {scheduleQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-20" /> : schedule.length === 0 ? <EmptyState icon={Calendar} title="No classes" text="Sessions appear when bookings are created." /> : <div className="space-y-3">{schedule.slice(0, 5).map(s => { const liveNow = String(s.live_status || '').toLowerCase() === 'live'; return <div key={s.id} className="flex items-start justify-between rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><div><div className="font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'}</div><div className="mt-1 text-xs text-bark"><Clock3 size={12} className="inline mr-1" />{new Date(s.session_date).toLocaleString()}</div></div><div className="flex flex-col items-end gap-2"><StatusPill tone={liveNow ? 'emerald' : s.status === 'completed' ? 'emerald' : s.status === 'cancelled' ? 'rose' : 'gold'}>{liveNow ? 'live now' : (s.status || 'upcoming')}</StatusPill>{liveNow && <span className="text-xs font-semibold text-emerald">Students can join now</span>}</div></div>})}</div>}
+          {scheduleQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-20" /> : schedulePriorityList.length === 0 ? <EmptyState icon={Calendar} title="No upcoming classes" text="Live and upcoming sessions appear here first." /> : <div className="space-y-3">{schedulePriorityList.slice(0, 5).map(s => { const liveNow = String(s.live_status || '').toLowerCase() === 'live'; return <div key={s.id} className="rounded-[24px] border border-parchment/50 bg-gradient-to-r from-white to-ivory/70 p-4"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusPill tone={liveNow ? 'emerald' : 'gold'}>{liveNow ? 'live now' : 'up next'}</StatusPill><span className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/70">{formatSessionDateLabel(s.session_date)}</span></div><div className="mt-2 font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'}</div></div><div className="rounded-2xl border border-parchment/50 bg-white px-4 py-3 text-sm text-bark">{liveNow ? 'Students can join right now.' : 'Starts soon — ready when you are.'}</div></div></div>})}</div>}
         </SectionCard>
         <SectionCard title="Notifications">
           {notifsQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-16" /> : notifications.length === 0 ? <EmptyState icon={Bell} title="No notifications" text="Updates will appear here." /> : <div className="space-y-3">{notifications.slice(0, 6).map(n => <div key={n.id} className="flex items-start justify-between rounded-2xl border border-parchment/50 bg-white p-4 gap-3"><div><div className="font-semibold text-ink">{n.title}</div><div className="mt-1 text-sm text-bark">{n.message}</div></div><StatusPill tone={n.type === 'system' ? 'teal' : 'gold'}>{n.type.replace('_', ' ')}</StatusPill></div>)}</div>}
@@ -267,9 +317,24 @@ export default function TeacherDashboard() {
       <div className="mb-6 rounded-[24px] border border-emerald/20 bg-emerald/8 px-5 py-4 text-sm text-emerald">
         Teachers can start a class at any future date for testing. Students will see the class turn live on their dashboard automatically when you start it.
       </div>
-      <SectionCard>
-        {scheduleQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-20" /> : schedule.length === 0 ? <EmptyState icon={Calendar} title="No sessions" text="Sessions appear with bookings." /> : <div className="space-y-4">{schedule.map(s => { const liveNow = String(s.live_status || '').toLowerCase() === 'live'; const completed = String(s.status || '').toLowerCase() === 'completed'; const cancelled = String(s.status || '').toLowerCase() === 'cancelled'; return <div key={s.id} className="rounded-[24px] border border-parchment/50 bg-white p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="flex gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald/10 text-emerald"><Video size={20} /></div><div><div className="font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'}</div><div className="mt-2 text-xs text-bark">{new Date(s.session_date).toLocaleString()} • {s.duration_minutes || 60}min</div>{liveNow && <div className="mt-2 text-sm font-semibold text-emerald">Live now — students can join from their dashboard.</div>}</div></div><div className="flex flex-wrap items-center gap-2"><StatusPill tone={liveNow ? 'emerald' : completed ? 'emerald' : cancelled ? 'rose' : 'gold'}>{liveNow ? 'live now' : (s.status || 'upcoming')}</StatusPill><Link to={`/classroom/${s.id}`} className="rounded-xl bg-teal px-4 py-2 text-sm font-semibold text-white">Join</Link><button onClick={() => classAction.mutate({ type: 'start', sessionId: s.id })} disabled={classAction.isPending || completed || cancelled} className="rounded-xl bg-emerald px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{liveNow ? 'Restart / Rejoin' : 'Start now'}</button><button onClick={() => classAction.mutate({ type: 'end', sessionId: s.id })} disabled={classAction.isPending || completed || cancelled} className="rounded-xl bg-rose px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">End</button></div></div></div>})}</div>}
-      </SectionCard>
+      <GridList cols="md:grid-cols-3">
+        <StatCard icon={Video} label="Live now" value={scheduleGroups.live.length} tone="emerald" />
+        <StatCard icon={Calendar} label="Coming up" value={scheduleGroups.upcoming.length} tone="gold" />
+        <StatCard icon={Clock3} label="Past sessions" value={scheduleGroups.history.length} tone="ink" />
+      </GridList>
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <SectionCard title="Live now">
+          {scheduleQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-28" /> : scheduleGroups.live.length === 0 ? <EmptyState icon={Video} title="Nothing live yet" text="Start a class and students will immediately see it." /> : <div className="space-y-4">{scheduleGroups.live.map(s => <div key={s.id} className="rounded-[28px] border border-emerald/20 bg-gradient-to-r from-emerald/10 via-white to-teal/10 p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="flex gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald text-white shadow-sm"><Video size={20} /></div><div><div className="flex flex-wrap items-center gap-2"><StatusPill tone="emerald">live now</StatusPill><span className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald">{formatSessionDateLabel(s.session_date)}</span></div><div className="mt-2 text-lg font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'}</div><div className="mt-2 text-sm font-semibold text-emerald">Students can join from their dashboard now.</div></div></div><div className="flex flex-wrap items-center gap-2"><Link to={`/classroom/${s.id}`} className="rounded-xl bg-teal px-4 py-2 text-sm font-semibold text-white">Join room</Link><button onClick={() => classAction.mutate({ type: 'start', sessionId: s.id })} disabled={classAction.isPending} className="rounded-xl bg-emerald px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Rejoin</button><button onClick={() => classAction.mutate({ type: 'end', sessionId: s.id })} disabled={classAction.isPending} className="rounded-xl bg-rose px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">End</button></div></div></div>)}</div>}
+        </SectionCard>
+        <SectionCard title="Coming up next">
+          {scheduleQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-24" /> : scheduleGroups.upcoming.length === 0 ? <EmptyState icon={Calendar} title="No upcoming sessions" text="New bookings will appear here with the soonest first." /> : <div className="space-y-4">{scheduleGroups.upcoming.map(s => <div key={s.id} className="rounded-[24px] border border-parchment/50 bg-white p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><StatusPill tone="gold">upcoming</StatusPill><span className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/70">{formatSessionDateLabel(s.session_date)}</span></div><div className="mt-2 font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'} • {s.duration_minutes || 60} min</div></div><div className="flex flex-wrap items-center gap-2"><Link to={`/classroom/${s.id}`} className="rounded-xl border border-parchment px-4 py-2 text-sm font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Open room</Link><button onClick={() => classAction.mutate({ type: 'start', sessionId: s.id })} disabled={classAction.isPending} className="rounded-xl bg-emerald px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Start now</button></div></div></div>)}</div>}
+        </SectionCard>
+      </div>
+      <div className="mt-6">
+        <SectionCard title="Past sessions">
+          {scheduleQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-20" /> : scheduleGroups.history.length === 0 ? <EmptyState icon={Clock3} title="No past sessions" text="Completed or missed sessions will be listed here." /> : <div className="space-y-3">{scheduleGroups.history.map(s => { const completed = String(s.status || '').toLowerCase() === 'completed'; const cancelled = String(s.status || '').toLowerCase() === 'cancelled'; return <div key={s.id} className="flex flex-col gap-3 rounded-[22px] border border-parchment/50 bg-ivory/55 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'}</div><div className="mt-1 text-xs text-bark">{formatSessionDateLabel(s.session_date)}</div></div><div className="flex flex-wrap items-center gap-2"><StatusPill tone={completed ? 'emerald' : cancelled ? 'rose' : 'gold'}>{completed ? 'completed' : cancelled ? 'cancelled' : 'ended'}</StatusPill>{!completed && !cancelled && <div className="flex items-center gap-1 text-xs font-medium text-bark"><AlertTriangle size={12} /> Needs follow-up</div>}</div></div>})}</div>}
+        </SectionCard>
+      </div>
     </PageHeader>
   )
 

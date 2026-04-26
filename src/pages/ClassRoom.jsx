@@ -8,6 +8,14 @@ import {
 import { useAuth } from '../lib/auth.jsx'
 import { api, authFetch } from '../lib/api'
 
+function hashStringToUid(value = '') {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash) % 1000000000 || 1
+}
+
 export default function ClassRoom() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -110,9 +118,10 @@ export default function ClassRoom() {
       }
 
       const role = user.role === 'teacher' ? 'HOST' : 'STUDENT'
-      const tokenData = await authFetch(api.agoraToken(id, user.id, role), token)
+      const numericAgoraUid = hashStringToUid(user.id)
+      const tokenData = await authFetch(api.agoraToken(id, user.id, role, numericAgoraUid), token)
       if (!tokenData?.token) throw new Error('Failed to get Agora token')
-      const { token: agoraToken, appId, channel } = tokenData
+      const { token: agoraToken, appId, channel, agoraUid } = tokenData
 
       const AgoraModule = await import('agora-rtc-sdk-ng')
       const AgoraRTC = AgoraModule.default || AgoraModule
@@ -121,12 +130,14 @@ export default function ClassRoom() {
 
       const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
       clientRef.current = client
-      await client.join(appId, String(channel), agoraToken, String(user.id))
+      const joinUid = typeof agoraUid === 'number' ? agoraUid : numericAgoraUid
+      await client.join(appId, String(channel), agoraToken, joinUid)
+      joinedRef.current = true
 
       // Remote user handlers
       const handlePublished = async (remoteUser, mediaType) => {
-        if (!joinedRef.current) return
         try {
+          if (client.connectionState !== 'CONNECTED') return
           await client.subscribe(remoteUser, mediaType)
           if (mediaType === 'audio') remoteUser.audioTrack?.play()
           if (mediaType === 'video') addRemote(Number(remoteUser.uid) || remoteUser.uid)
@@ -171,12 +182,16 @@ export default function ClassRoom() {
         setCameraOn(false)
       }
 
+      for (const ru of client.remoteUsers || []) {
+        if (ru.hasVideo) await handlePublished(ru, 'video')
+        if (ru.hasAudio) await handlePublished(ru, 'audio')
+      }
+
       // Data stream
       try {
         dataStreamRef.current = await client.createDataStream({ ordered: true, reliable: true })
       } catch {}
 
-      joinedRef.current = true
       setJoined(true)
     } catch (e) {
       setError(e?.message || 'Failed to join class')
