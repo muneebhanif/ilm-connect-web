@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../lib/auth.jsx'
 import { api, authFetch } from '../lib/api'
+import './ClassRoom.css'
 
 function hashStringToUid(value = '') {
   let hash = 0
@@ -18,22 +19,12 @@ function hashStringToUid(value = '') {
 
 async function createOptimizedLocalTracks(AgoraRTC) {
   const audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-    AEC: true,
-    AGC: true,
-    ANS: true,
-    encoderConfig: {
-      sampleRate: 48000,
-      stereo: false,
-      bitrate: 64,
-    },
-    microphoneId: undefined,
+    AEC: true, AGC: true, ANS: true,
+    encoderConfig: { sampleRate: 48000, stereo: false, bitrate: 64 },
   })
-
   const videoTrack = await AgoraRTC.createCameraVideoTrack({
-    encoderConfig: '720p_2',
-    optimizationMode: 'detail',
+    encoderConfig: '720p_2', optimizationMode: 'detail',
   })
-
   try { audioTrack.setVolume?.(85) } catch {}
   return [audioTrack, videoTrack]
 }
@@ -41,45 +32,39 @@ async function createOptimizedLocalTracks(AgoraRTC) {
 function applyVideoFit(target, fit = 'cover') {
   const container = typeof target === 'string' ? document.getElementById(target) : target
   if (!container) return
-
-  container.style.background = '#111827'
-
-  const nodes = [
-    container,
-    ...container.querySelectorAll('.agora_video_player, video, canvas'),
-  ]
-
+  container.style.background = '#0d1120'
+  const nodes = [container, ...container.querySelectorAll('.agora_video_player, video, canvas')]
   nodes.forEach((node) => {
     if (!(node instanceof HTMLElement)) return
-    let resolvedFit = fit
-
+    let resolved = fit
     if (fit === 'adaptive' && node instanceof HTMLVideoElement) {
-      const sourceWidth = node.videoWidth || 0
-      const sourceHeight = node.videoHeight || 0
-      const containerWidth = container.clientWidth || 0
-      const containerHeight = container.clientHeight || 0
-
-      if (sourceWidth > 0 && sourceHeight > 0 && containerWidth > 0 && containerHeight > 0) {
-        const sourceAspect = sourceWidth / sourceHeight
-        const containerAspect = containerWidth / containerHeight
-        resolvedFit = Math.abs(sourceAspect - containerAspect) > 0.38 ? 'contain' : 'cover'
-      } else {
-        resolvedFit = 'cover'
-      }
+      const sw = node.videoWidth || 0, sh = node.videoHeight || 0
+      const cw = container.clientWidth || 0, ch = container.clientHeight || 0
+      if (sw > 0 && sh > 0 && cw > 0 && ch > 0) {
+        resolved = Math.abs(sw / sh - cw / ch) > 0.38 ? 'contain' : 'cover'
+      } else resolved = 'cover'
     }
-
     node.style.width = '100%'
     node.style.height = '100%'
-    node.style.objectFit = resolvedFit
-    node.style.background = '#111827'
+    node.style.objectFit = resolved
+    node.style.background = '#0d1120'
   })
 }
 
 function isDesktopScreenShareAvailable() {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
-  const hasDisplayMedia = typeof navigator.mediaDevices?.getDisplayMedia === 'function'
-  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '')
-  return hasDisplayMedia && !isMobile && window.innerWidth >= 768
+  return typeof navigator.mediaDevices?.getDisplayMedia === 'function'
+    && !/android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '')
+    && window.innerWidth >= 768
+}
+
+function getGridClass(count) {
+  if (count <= 1) return 'cr-grid-1'
+  if (count === 2) return 'cr-grid-2'
+  if (count === 3) return 'cr-grid-3'
+  if (count === 4) return 'cr-grid-4'
+  if (count <= 6) return 'cr-grid-6'
+  return 'cr-grid-many'
 }
 
 export default function ClassRoom() {
@@ -105,6 +90,8 @@ export default function ClassRoom() {
   const dataStreamRef = useRef(null)
   const joinedRef = useRef(false)
   const endedRef = useRef(false)
+  const pipRef = useRef(null)
+  const chatBottomRef = useRef(null)
 
   const canScreenShare = isDesktopScreenShareAvailable()
 
@@ -128,6 +115,55 @@ export default function ClassRoom() {
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
   }
 
+  // Auto-scroll chat
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
+
+  // Draggable PiP
+  useEffect(() => {
+    const pip = pipRef.current
+    if (!pip || !joined) return
+    let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0
+
+    const onDown = (e) => {
+      dragging = true
+      pip.classList.add('dragging')
+      const ev = e.touches ? e.touches[0] : e
+      const rect = pip.getBoundingClientRect()
+      startX = ev.clientX; startY = ev.clientY
+      origX = rect.left; origY = rect.top
+      e.preventDefault()
+    }
+    const onMove = (e) => {
+      if (!dragging) return
+      const ev = e.touches ? e.touches[0] : e
+      const dx = ev.clientX - startX, dy = ev.clientY - startY
+      const parent = pip.parentElement.getBoundingClientRect()
+      let nx = origX + dx - parent.left, ny = origY + dy - parent.top
+      nx = Math.max(0, Math.min(nx, parent.width - pip.offsetWidth))
+      ny = Math.max(0, Math.min(ny, parent.height - pip.offsetHeight))
+      pip.style.left = nx + 'px'; pip.style.top = ny + 'px'
+      pip.style.right = 'auto'
+    }
+    const onUp = () => { dragging = false; pip.classList.remove('dragging') }
+
+    pip.addEventListener('mousedown', onDown)
+    pip.addEventListener('touchstart', onDown, { passive: false })
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchend', onUp)
+    return () => {
+      pip.removeEventListener('mousedown', onDown)
+      pip.removeEventListener('touchstart', onDown)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchend', onUp)
+    }
+  }, [joined])
+
   const cleanup = useCallback(async () => {
     joinedRef.current = false
     try {
@@ -135,10 +171,7 @@ export default function ClassRoom() {
       if (localTracksRef.current.videoTrack) { localTracksRef.current.videoTrack.stop(); localTracksRef.current.videoTrack.close() }
       if (localTracksRef.current.screenTrack) { localTracksRef.current.screenTrack.stop(); localTracksRef.current.screenTrack.close() }
       localTracksRef.current = {}
-      if (clientRef.current) {
-        clientRef.current.removeAllListeners?.()
-        await clientRef.current.leave()
-      }
+      if (clientRef.current) { clientRef.current.removeAllListeners?.(); await clientRef.current.leave() }
     } catch {}
     clientRef.current = null
     dataStreamRef.current = null
@@ -165,10 +198,10 @@ export default function ClassRoom() {
 
   // Play remote videos
   useEffect(() => {
-    const videoParticipants = remoteParticipants.filter((participant) => participant.hasVideo)
-    if (!joined || !videoParticipants.length) return
+    const vp = remoteParticipants.filter((p) => p.hasVideo)
+    if (!joined || !vp.length) return
     const t = setTimeout(() => {
-      videoParticipants.forEach(({ uid }) => {
+      vp.forEach(({ uid }) => {
         const ru = clientRef.current?.remoteUsers?.find((u) => String(u.uid) === String(uid))
         if (ru?.videoTrack) {
           const el = document.getElementById(`remote-player-${uid}`)
@@ -187,33 +220,17 @@ export default function ClassRoom() {
     const screenTrack = localTracksRef.current.screenTrack
     const cameraTrack = localTracksRef.current.videoTrack
     if (!client || !screenTrack) return
-
-    try {
-      await client.unpublish(screenTrack)
-    } catch {}
-
-    try {
-      screenTrack.stop()
-      screenTrack.close()
-    } catch {}
-
+    try { await client.unpublish(screenTrack) } catch {}
+    try { screenTrack.stop(); screenTrack.close() } catch {}
     localTracksRef.current.screenTrack = null
     setScreenSharing(false)
-
     const localEl = document.getElementById('local-player')
     if (cameraTrack && cameraOn) {
       try {
         await client.publish(cameraTrack)
-        if (localEl) {
-          cameraTrack.play(localEl, { fit: 'cover', mirror: true })
-          setTimeout(() => applyVideoFit(localEl, 'cover'), 30)
-        }
-      } catch (e) {
-        console.warn('Failed to restore camera after screen share:', e)
-      }
-    } else if (localEl) {
-      localEl.innerHTML = ''
-    }
+        if (localEl) { cameraTrack.play(localEl, { fit: 'cover', mirror: true }); setTimeout(() => applyVideoFit(localEl, 'cover'), 30) }
+      } catch {}
+    } else if (localEl) { localEl.innerHTML = '' }
   }, [cameraOn])
 
   const startScreenShare = useCallback(async () => {
@@ -221,32 +238,17 @@ export default function ClassRoom() {
     const client = clientRef.current
     const cameraTrack = localTracksRef.current.videoTrack
     if (!AgoraRTC || !client || !canScreenShare || screenSharing) return
-
     try {
-      const createdTrack = await AgoraRTC.createScreenVideoTrack({
-        encoderConfig: '1080p_1',
-        optimizationMode: 'detail',
-      })
-      const screenTrack = Array.isArray(createdTrack) ? createdTrack[0] : createdTrack
-      if (!screenTrack) throw new Error('Screen sharing is not available on this browser')
-
-      try {
-        if (cameraTrack) await client.unpublish(cameraTrack)
-      } catch {}
-
+      const created = await AgoraRTC.createScreenVideoTrack({ encoderConfig: '1080p_1', optimizationMode: 'detail' })
+      const screenTrack = Array.isArray(created) ? created[0] : created
+      if (!screenTrack) throw new Error('Screen sharing unavailable')
+      try { if (cameraTrack) await client.unpublish(cameraTrack) } catch {}
       localTracksRef.current.screenTrack = screenTrack
-      screenTrack.on?.('track-ended', () => {
-        void stopScreenShare()
-      })
-
+      screenTrack.on?.('track-ended', () => { void stopScreenShare() })
       await client.publish(screenTrack)
       setScreenSharing(true)
-
       const localEl = document.getElementById('local-player')
-      if (localEl) {
-        screenTrack.play(localEl, { fit: 'contain', mirror: false })
-        setTimeout(() => applyVideoFit(localEl, 'contain'), 30)
-      }
+      if (localEl) { screenTrack.play(localEl, { fit: 'contain', mirror: false }); setTimeout(() => applyVideoFit(localEl, 'contain'), 30) }
     } catch (e) {
       console.error('Screen share failed:', e)
       await stopScreenShare()
@@ -254,35 +256,23 @@ export default function ClassRoom() {
   }, [canScreenShare, screenSharing, stopScreenShare])
 
   const upsertRemoteParticipant = (uid, patch = {}) => {
-    const normalizedUid = Number(uid) || uid
-    setRemoteParticipants((previous) => {
-      const existing = previous.find((item) => String(item.uid) === String(normalizedUid))
-      if (!existing) {
-        return [...previous, { uid: normalizedUid, hasVideo: false, hasAudio: false, ...patch }]
-      }
-      return previous.map((item) => (
-        String(item.uid) === String(normalizedUid)
-          ? { ...item, ...patch, uid: normalizedUid }
-          : item
-      ))
+    const n = Number(uid) || uid
+    setRemoteParticipants((prev) => {
+      const ex = prev.find((i) => String(i.uid) === String(n))
+      if (!ex) return [...prev, { uid: n, hasVideo: false, hasAudio: false, ...patch }]
+      return prev.map((i) => String(i.uid) === String(n) ? { ...i, ...patch, uid: n } : i)
     })
   }
-
   const removeRemoteParticipant = (uid) => {
-    const normalizedUid = Number(uid) || uid
-    setRemoteParticipants((previous) => previous.filter((item) => String(item.uid) !== String(normalizedUid)))
+    const n = Number(uid) || uid
+    setRemoteParticipants((prev) => prev.filter((i) => String(i.uid) !== String(n)))
   }
 
   const joinClass = async () => {
     if (!id || !user?.id) return
-    setJoining(true)
-    setError(null)
+    setJoining(true); setError(null)
     try {
-      // Teacher starts class
-      if (user.role === 'teacher') {
-        await authFetch(api.startClass(id), token, { method: 'POST' })
-      }
-
+      if (user.role === 'teacher') await authFetch(api.startClass(id), token, { method: 'POST' })
       const role = user.role === 'teacher' ? 'HOST' : 'STUDENT'
       const numericAgoraUid = hashStringToUid(user.id)
       const tokenData = await authFetch(api.agoraToken(id, user.id, role, numericAgoraUid), token)
@@ -300,7 +290,6 @@ export default function ClassRoom() {
       await client.join(appId, String(channel), agoraToken, joinUid)
       joinedRef.current = true
 
-      // Remote user handlers
       const handlePublished = async (remoteUser, mediaType) => {
         try {
           if (client.connectionState !== 'CONNECTED') return
@@ -315,79 +304,46 @@ export default function ClassRoom() {
           }
         } catch (e) { console.warn('Subscribe error:', e) }
       }
-      client.on('user-joined', (remoteUser) => {
-        upsertRemoteParticipant(remoteUser.uid, {
-          hasVideo: Boolean(remoteUser.hasVideo),
-          hasAudio: Boolean(remoteUser.hasAudio),
-        })
-      })
+      client.on('user-joined', (ru) => upsertRemoteParticipant(ru.uid, { hasVideo: Boolean(ru.hasVideo), hasAudio: Boolean(ru.hasAudio) }))
       client.on('user-published', handlePublished)
       client.on('user-unpublished', (ru, mt) => {
-        if (mt === 'video') {
-          upsertRemoteParticipant(ru.uid, { hasVideo: false, hasAudio: Boolean(ru.hasAudio) })
-        }
-        if (mt === 'audio') {
-          upsertRemoteParticipant(ru.uid, { hasAudio: false, hasVideo: Boolean(ru.hasVideo) })
-        }
+        if (mt === 'video') upsertRemoteParticipant(ru.uid, { hasVideo: false, hasAudio: Boolean(ru.hasAudio) })
+        if (mt === 'audio') upsertRemoteParticipant(ru.uid, { hasAudio: false, hasVideo: Boolean(ru.hasVideo) })
       })
       client.on('user-left', (ru) => removeRemoteParticipant(ru.uid))
       client.on('token-privilege-will-expire', async () => {
-        try {
-          const r = await authFetch(api.agoraToken(id, user.id, role, joinUid), token)
-          if (r?.token) await client.renewToken(r.token)
-        } catch {}
+        try { const r = await authFetch(api.agoraToken(id, user.id, role, joinUid), token); if (r?.token) await client.renewToken(r.token) } catch {}
       })
-
-      // Data stream for chat
       client.on('stream-message', (_uid, data) => {
         try {
           const decoded = typeof data === 'string' ? data : new TextDecoder().decode(data instanceof Uint8Array ? data : new Uint8Array(data))
           const msg = JSON.parse(decoded)
-          if (msg.type === 'chat') {
-            setChatMessages((p) => [...p, { id: Date.now() + Math.random(), senderName: msg.senderName, text: msg.text, at: msg.at, mine: false }])
-          }
+          if (msg.type === 'chat') setChatMessages((p) => [...p, { id: Date.now() + Math.random(), senderName: msg.senderName, text: msg.text, at: msg.at, mine: false }])
         } catch {}
       })
 
-      // Subscribe existing users
       for (const ru of client.remoteUsers || []) {
-        upsertRemoteParticipant(ru.uid, {
-          hasVideo: Boolean(ru.hasVideo),
-          hasAudio: Boolean(ru.hasAudio),
-        })
+        upsertRemoteParticipant(ru.uid, { hasVideo: Boolean(ru.hasVideo), hasAudio: Boolean(ru.hasAudio) })
         if (ru.hasVideo) await handlePublished(ru, 'video')
         if (ru.hasAudio) await handlePublished(ru, 'audio')
       }
 
-      // Local tracks
       try {
         const [at, vt] = await createOptimizedLocalTracks(AgoraRTC)
         localTracksRef.current = { audioTrack: at, videoTrack: vt }
         await client.publish([at, vt])
-        setMicOn(true)
-        setCameraOn(true)
-      } catch {
-        setMicOn(false)
-        setCameraOn(false)
-      }
+        setMicOn(true); setCameraOn(true)
+      } catch { setMicOn(false); setCameraOn(false) }
 
       for (const ru of client.remoteUsers || []) {
         if (ru.hasVideo) await handlePublished(ru, 'video')
         if (ru.hasAudio) await handlePublished(ru, 'audio')
       }
 
-      // Data stream
-      try {
-        dataStreamRef.current = await client.createDataStream({ ordered: true, reliable: true })
-      } catch {}
-
+      try { dataStreamRef.current = await client.createDataStream({ ordered: true, reliable: true }) } catch {}
       setJoined(true)
-    } catch (e) {
-      setError(e?.message || 'Failed to join class')
-      await cleanup()
-    } finally {
-      setJoining(false)
-    }
+    } catch (e) { setError(e?.message || 'Failed to join class'); await cleanup() }
+    finally { setJoining(false) }
   }
 
   const endOrLeave = async () => {
@@ -399,10 +355,7 @@ export default function ClassRoom() {
     navigate(user?.role === 'teacher' ? '/dashboard/teacher' : user?.role === 'student' ? '/dashboard/student' : '/dashboard/parent')
   }
 
-  const goBack = async () => {
-    await cleanup()
-    navigate(-1)
-  }
+  const goBack = async () => { await cleanup(); navigate(-1) }
 
   const toggleMic = async () => {
     const t = localTracksRef.current.audioTrack
@@ -412,25 +365,14 @@ export default function ClassRoom() {
     if (screenSharing) return
     const t = localTracksRef.current.videoTrack
     if (t) {
-      await t.setEnabled(!cameraOn)
-      setCameraOn((v) => !v)
+      await t.setEnabled(!cameraOn); setCameraOn((v) => !v)
       if (!cameraOn) {
-        const localEl = document.getElementById('local-player')
-        if (localEl) {
-          t.play(localEl, { fit: 'cover', mirror: true })
-          setTimeout(() => applyVideoFit(localEl, 'cover'), 30)
-        }
+        const el = document.getElementById('local-player')
+        if (el) { t.play(el, { fit: 'cover', mirror: true }); setTimeout(() => applyVideoFit(el, 'cover'), 30) }
       }
     }
   }
-
-  const toggleScreenShare = async () => {
-    if (screenSharing) {
-      await stopScreenShare()
-      return
-    }
-    await startScreenShare()
-  }
+  const toggleScreenShare = async () => { screenSharing ? await stopScreenShare() : await startScreenShare() }
 
   const sendChat = async () => {
     const text = chatInput.trim()
@@ -448,120 +390,101 @@ export default function ClassRoom() {
     }
   }
 
-  // ── LOADING ──
+  /* ── LOADING ── */
   if (sessionQuery.isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0B1120]">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-16 w-16 animate-spin rounded-full border-4 border-emerald/30 border-t-emerald" />
-          <p className="text-lg font-semibold text-white/80">Preparing Classroom…</p>
-        </div>
+      <div className="cr-fullscreen">
+        <div className="cr-spinner" />
+        <p className="cr-loading-text">Preparing Classroom…</p>
       </div>
     )
   }
 
-  // ── ERROR ──
+  /* ── ERROR ── */
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0B1120] px-4">
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose/10 text-rose"><PhoneOff size={28} /></div>
-          <h2 className="text-xl font-bold text-white">Something went wrong</h2>
-          <p className="mt-2 text-sm text-white/50">{error}</p>
-          <button onClick={goBack} className="mt-6 rounded-2xl bg-white/10 px-6 py-3 text-sm font-semibold text-white hover:bg-white/20">Go Back</button>
-        </div>
+      <div className="cr-fullscreen">
+        <div className="cr-error-icon"><PhoneOff size={28} /></div>
+        <h2 className="cr-error-title">Something went wrong</h2>
+        <p className="cr-error-msg">{error}</p>
+        <button onClick={goBack} className="cr-error-back">Go Back</button>
       </div>
     )
   }
 
-  // ── LOBBY ──
+  /* ── LOBBY ── */
   if (!joined) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#0B1120] px-4">
-        <button onClick={goBack} className="absolute left-6 top-6 rounded-xl bg-white/8 p-2.5 text-white/70 hover:bg-white/15">
-          <RotateCcw size={18} />
-        </button>
-        <div className="mb-8 flex h-52 w-52 flex-col items-center justify-center rounded-3xl bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-white/5">
-          <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald/10 border border-emerald/20">
-            <span className="text-2xl font-bold text-emerald">{(user?.full_name || '?').charAt(0).toUpperCase()}</span>
-          </div>
-          <p className="font-semibold text-white/90">{user?.full_name || 'You'}</p>
-          <p className="text-xs text-white/40">{user?.role === 'teacher' ? '🎓 Teacher' : '📖 Student'}</p>
+      <div className="cr-lobby">
+        <button onClick={goBack} className="cr-lobby-back"><RotateCcw size={18} /></button>
+        <div className="cr-lobby-card">
+          <div className="cr-lobby-avatar">{(user?.full_name || '?').charAt(0).toUpperCase()}</div>
+          <p className="cr-lobby-name">{user?.full_name || 'You'}</p>
+          <p className="cr-lobby-role">{user?.role === 'teacher' ? '🎓 Teacher' : '📖 Student'}</p>
         </div>
-        <h2 className="text-xl font-bold text-white">{session?.subject || 'Class Session'}</h2>
-        <p className="mt-1 text-sm text-white/40">{user?.role === 'teacher' ? 'You are hosting' : `With ${session?.teacher_name || 'Teacher'}`}</p>
+        <h2 className="cr-lobby-subject">{session?.subject || 'Class Session'}</h2>
+        <p className="cr-lobby-host">{user?.role === 'teacher' ? 'You are hosting' : `With ${session?.teacher_name || 'Teacher'}`}</p>
         {session?.duration_minutes && (
-          <div className="mt-3 flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1 text-xs text-white/40">
-            <Clock size={12} /> {session.duration_minutes} min
-          </div>
+          <div className="cr-lobby-duration"><Clock size={12} /> {session.duration_minutes} min</div>
         )}
-        <button
-          onClick={joinClass}
-          disabled={joining}
-          className="mt-8 rounded-2xl bg-gradient-to-r from-emerald to-teal px-10 py-4 text-lg font-bold text-white shadow-lg shadow-emerald/30 transition hover:brightness-110 disabled:opacity-50"
-        >
+        <button onClick={joinClass} disabled={joining} className="cr-lobby-join">
           {joining ? 'Connecting…' : user?.role === 'teacher' ? 'Start Class' : 'Join Now'}
         </button>
       </div>
     )
   }
 
-  // ── IN-CALL ──
+  /* ── IN-CALL ── */
+  const allTiles = remoteParticipants
+  const tileCount = allTiles.length || 1
+
   return (
-    <div className="flex h-screen flex-col bg-[#0B1120]">
+    <div className="cr-root">
       {/* Top bar */}
-      <div className="flex items-center justify-between border-b border-white/5 bg-[#0B1120]/95 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 rounded-md bg-rose/15 px-2 py-1">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose" />
-            <span className="text-[10px] font-bold tracking-wider text-rose/80">LIVE</span>
+      <div className="cr-topbar">
+        <div className="cr-topbar-left">
+          <div className="cr-live-badge">
+            <span className="cr-live-dot" />
+            <span className="cr-live-text">LIVE</span>
           </div>
-          <span className="font-mono text-sm text-white/40">{fmt(elapsed)}</span>
+          <span className="cr-timer">{fmt(elapsed)}</span>
         </div>
-        <h3 className="max-w-xs truncate text-sm font-semibold text-white/80">{session?.subject || 'Live Class'}</h3>
-        <div className="flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1">
-          <Users size={13} className="text-white/40" />
-          <span className="text-xs font-semibold text-white/50">{1 + remoteParticipants.length}</span>
+        <span className="cr-topbar-center">{session?.subject || 'Live Class'}</span>
+        <div className="cr-topbar-right">
+          <div className="cr-participants-badge">
+            <Users size={13} />
+            <span>{1 + remoteParticipants.length}</span>
+          </div>
         </div>
       </div>
 
-      {/* Video area */}
-      <div className="relative flex-1">
-        {/* Remote videos */}
-        <div className="absolute inset-0 bg-[#0B1120] p-4 md:p-6">
-          {remoteParticipants.length === 0 ? (
-            <div className="flex h-full items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/5 border border-white/8">
-                <span className="text-3xl">👤</span>
+      {/* Video stage */}
+      <div className="cr-stage">
+        <div className="cr-grid-wrapper">
+          {allTiles.length === 0 ? (
+            <div className="cr-waiting">
+              <div className="cr-waiting-avatar">👤</div>
+              <p className="cr-waiting-text">Waiting for participant…</p>
+              <div className="cr-waiting-status">
+                <span className="cr-waiting-status-dot" />
+                <span className="cr-waiting-status-text">Connected</span>
               </div>
-              <p className="text-sm text-white/30">Waiting for participant…</p>
-              <div className="flex items-center gap-1.5 rounded-full bg-emerald/8 border border-emerald/15 px-3 py-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald" />
-                <span className="text-xs font-semibold text-emerald">Connected</span>
-              </div>
-            </div>
             </div>
           ) : (
-            <div className={remoteParticipants.length === 1 ? 'flex h-full items-center justify-center' : `grid h-full gap-4 ${remoteParticipants.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
-              {remoteParticipants.map((participant) => (
-                <div
-                  key={participant.uid}
-                  className={`relative overflow-hidden rounded-[28px] border border-white/8 bg-[#111827] shadow-xl ${remoteParticipants.length === 1 ? 'aspect-video w-full max-w-5xl' : ''}`}
-                  style={remoteParticipants.length === 1 ? { maxHeight: 'calc(100vh - 220px)' } : undefined}
-                >
-                  <div id={`remote-player-${participant.uid}`} className={`absolute inset-0 ${participant.hasVideo ? '' : 'hidden'}`} style={{ background: '#111827' }} />
-                  {!participant.hasVideo && (
-                    <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-3 bg-gradient-to-b from-[#111827] to-[#0F172A] text-white/80">
-                      <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/5 text-2xl font-bold">
-                        {String(participant.uid).charAt(0).toUpperCase()}
-                      </div>
-                      <div className="text-sm font-semibold">Participant connected</div>
-                      <div className="text-xs text-white/40">Camera is off or still connecting</div>
+            <div className={`cr-video-grid ${getGridClass(tileCount)}`}>
+              {allTiles.map((p) => (
+                <div key={p.uid} className={`cr-tile ${tileCount === 1 ? 'cr-tile-solo' : ''}`}>
+                  <div id={`remote-player-${p.uid}`} className={`cr-tile-video ${p.hasVideo ? '' : 'hidden'}`} />
+                  {!p.hasVideo && (
+                    <div className="cr-tile-avatar">
+                      <div className="cr-avatar-circle">{String(p.uid).charAt(0).toUpperCase()}</div>
+                      <span className="cr-avatar-name">Participant</span>
+                      <span className="cr-avatar-sub">Camera off</span>
                     </div>
                   )}
-                  <div className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs font-semibold text-white/80 backdrop-blur">
-                    Participant {participant.uid}
+                  <div className="cr-tile-label">
+                    <span className="cr-tile-label-text">Participant {p.uid}</span>
+                    {!p.hasAudio && <MicOff size={12} className="cr-tile-mic-icon muted" />}
                   </div>
                 </div>
               ))}
@@ -570,81 +493,78 @@ export default function ClassRoom() {
         </div>
 
         {/* Local PiP */}
-  <div id="local-player" className="absolute right-4 top-4 z-20 h-32 w-24 overflow-hidden rounded-2xl border-2 border-emerald/40 bg-[#0F172A] shadow-xl md:h-40 md:w-28" />
+        <div ref={pipRef} className="cr-pip">
+          <div id="local-player" style={{ width: '100%', height: '100%' }} />
+          <span className="cr-pip-label">You</span>
+        </div>
 
         {/* Chat panel */}
         {chatOpen && (
-          <div className="absolute right-0 top-0 bottom-0 z-30 flex w-80 flex-col border-l border-white/5 bg-[#0F172A]/98">
-            <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
-              <span className="font-semibold text-white">Chat</span>
-              <button onClick={() => setChatOpen(false)} className="text-white/40 hover:text-white"><X size={18} /></button>
+          <div className="cr-chat">
+            <div className="cr-chat-header">
+              <span className="cr-chat-title">Chat</span>
+              <button onClick={() => setChatOpen(false)} className="cr-chat-close"><X size={16} /></button>
             </div>
-            <div className="flex-1 space-y-2 overflow-y-auto p-3">
-              {chatMessages.length === 0 && <p className="py-10 text-center text-xs text-white/20">No messages yet</p>}
+            <div className="cr-chat-messages">
+              {chatMessages.length === 0 && <p className="cr-chat-empty">No messages yet</p>}
               {chatMessages.map((m) => (
-                <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${m.mine ? 'ml-auto bg-emerald text-white' : 'bg-white/8 text-white/80'}`}>
-                  {!m.mine && <p className="mb-0.5 text-[10px] font-bold text-emerald/80">{m.senderName}</p>}
+                <div key={m.id} className={`cr-msg ${m.mine ? 'mine' : 'theirs'}`}>
+                  {!m.mine && <p className="cr-msg-sender">{m.senderName}</p>}
                   <p>{m.text}</p>
-                  <p className={`mt-1 text-[10px] ${m.mine ? 'text-white/50' : 'text-white/30'}`}>{new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p className="cr-msg-time">{new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
               ))}
+              <div ref={chatBottomRef} />
             </div>
-            <div className="flex gap-2 border-t border-white/5 p-3">
+            <div className="cr-chat-input-wrap">
               <input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && sendChat()}
                 placeholder="Type a message…"
-                className="flex-1 rounded-xl bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 border border-white/5 focus:outline-none focus:border-emerald/30"
+                className="cr-chat-input"
               />
-              <button onClick={sendChat} className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald text-white"><Send size={14} /></button>
+              <button onClick={sendChat} className="cr-chat-send"><Send size={14} /></button>
             </div>
           </div>
         )}
       </div>
 
       {/* Bottom controls */}
-      <div className="flex items-center justify-center gap-4 border-t border-white/5 bg-[#0F172A]/95 px-4 py-4">
-        <button onClick={toggleMic} className={`flex h-12 w-12 items-center justify-center rounded-full transition ${micOn ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-rose/20 text-rose'}`}>
-          {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-        </button>
-        <button
-          onClick={toggleCamera}
-          disabled={screenSharing}
-          title={screenSharing ? 'Stop screen sharing to use camera controls' : 'Toggle camera'}
-          className={`flex h-12 w-12 items-center justify-center rounded-full transition ${cameraOn ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-rose/20 text-rose'} ${screenSharing ? 'cursor-not-allowed opacity-50' : ''}`}
-        >
-          {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
-        </button>
-        {canScreenShare && (
-          <button
-            onClick={toggleScreenShare}
-            title={screenSharing ? 'Stop sharing screen' : 'Share screen'}
-            className={`flex h-12 w-12 items-center justify-center rounded-full transition ${screenSharing ? 'bg-sky-500/20 text-sky-300' : 'bg-white/10 text-white hover:bg-white/15'}`}
-          >
-            {screenSharing ? <ScreenShareOff size={20} /> : <ScreenShare size={20} />}
+      <div className="cr-controls">
+        <div className="cr-ctrl-group">
+          <button onClick={toggleMic} className={`cr-ctrl-btn ${micOn ? '' : 'off'}`}>
+            {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+            <span className="cr-tooltip">{micOn ? 'Mute' : 'Unmute'}</span>
           </button>
-        )}
-        <button onClick={() => setChatOpen((v) => !v)} className={`flex h-12 w-12 items-center justify-center rounded-full transition ${chatOpen ? 'bg-emerald/20 text-emerald' : 'bg-white/10 text-white hover:bg-white/15'}`}>
-          <MessageCircle size={20} />
-        </button>
-        <button onClick={endOrLeave} className="flex h-14 w-14 items-center justify-center rounded-full bg-rose text-white shadow-lg shadow-rose/30 hover:brightness-110">
-          {user?.role === 'teacher' ? <Phone size={22} className="rotate-[135deg]" /> : <PhoneOff size={22} />}
+          <button onClick={toggleCamera} disabled={screenSharing} className={`cr-ctrl-btn ${cameraOn ? '' : 'off'} ${screenSharing ? '' : ''}`}>
+            {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+            <span className="cr-tooltip">{cameraOn ? 'Stop Video' : 'Start Video'}</span>
+          </button>
+        </div>
+
+        <div className="cr-ctrl-divider" />
+
+        <div className="cr-ctrl-group">
+          {canScreenShare && (
+            <button onClick={toggleScreenShare} className={`cr-ctrl-btn ${screenSharing ? 'screen-active' : ''}`}>
+              {screenSharing ? <ScreenShareOff size={20} /> : <ScreenShare size={20} />}
+              <span className="cr-tooltip">{screenSharing ? 'Stop Sharing' : 'Share Screen'}</span>
+            </button>
+          )}
+          <button onClick={() => setChatOpen((v) => !v)} className={`cr-ctrl-btn ${chatOpen ? 'active' : ''}`}>
+            <MessageCircle size={20} />
+            <span className="cr-tooltip">Chat</span>
+          </button>
+        </div>
+
+        <div className="cr-ctrl-divider" />
+
+        <button onClick={endOrLeave} className="cr-end-btn">
+          {user?.role === 'teacher' ? <Phone size={20} className="rotate-[135deg]" /> : <PhoneOff size={20} />}
+          <span className="cr-tooltip">{user?.role === 'teacher' ? 'End Class' : 'Leave'}</span>
         </button>
       </div>
-
-      <style>{`
-        #local-player .agora_video_player,
-        [id^="remote-player-"] .agora_video_player,
-        #local-player video,
-        [id^="remote-player-"] video,
-        #local-player canvas,
-        [id^="remote-player-"] canvas {
-          width: 100% !important;
-          height: 100% !important;
-          background: #111827 !important;
-        }
-      `}</style>
     </div>
   )
 }
