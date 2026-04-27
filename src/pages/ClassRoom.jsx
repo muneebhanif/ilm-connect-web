@@ -38,7 +38,7 @@ async function createOptimizedLocalTracks(AgoraRTC) {
   return [audioTrack, videoTrack]
 }
 
-function applyVideoFit(target, fit = 'contain') {
+function applyVideoFit(target, fit = 'cover') {
   const container = typeof target === 'string' ? document.getElementById(target) : target
   if (!container) return
 
@@ -51,9 +51,26 @@ function applyVideoFit(target, fit = 'contain') {
 
   nodes.forEach((node) => {
     if (!(node instanceof HTMLElement)) return
+    let resolvedFit = fit
+
+    if (fit === 'adaptive' && node instanceof HTMLVideoElement) {
+      const sourceWidth = node.videoWidth || 0
+      const sourceHeight = node.videoHeight || 0
+      const containerWidth = container.clientWidth || 0
+      const containerHeight = container.clientHeight || 0
+
+      if (sourceWidth > 0 && sourceHeight > 0 && containerWidth > 0 && containerHeight > 0) {
+        const sourceAspect = sourceWidth / sourceHeight
+        const containerAspect = containerWidth / containerHeight
+        resolvedFit = Math.abs(sourceAspect - containerAspect) > 0.38 ? 'contain' : 'cover'
+      } else {
+        resolvedFit = 'cover'
+      }
+    }
+
     node.style.width = '100%'
     node.style.height = '100%'
-    node.style.objectFit = fit
+    node.style.objectFit = resolvedFit
     node.style.background = '#111827'
   })
 }
@@ -139,8 +156,8 @@ export default function ClassRoom() {
       const vt = localTracksRef.current.screenTrack || localTracksRef.current.videoTrack
       const el = document.getElementById('local-player')
       if (vt && el) {
-        vt.play(el, { fit: 'contain', mirror: !screenSharing })
-        setTimeout(() => applyVideoFit(el, 'contain'), 30)
+        vt.play(el, { fit: screenSharing ? 'contain' : 'cover', mirror: !screenSharing })
+        setTimeout(() => applyVideoFit(el, screenSharing ? 'contain' : 'cover'), 30)
       }
     }, 100)
     return () => clearTimeout(t)
@@ -156,8 +173,8 @@ export default function ClassRoom() {
         if (ru?.videoTrack) {
           const el = document.getElementById(`remote-player-${uid}`)
           if (el) {
-            ru.videoTrack.play(el, { fit: 'contain' })
-            setTimeout(() => applyVideoFit(el, 'contain'), 30)
+            ru.videoTrack.play(el, { fit: 'cover' })
+            setTimeout(() => applyVideoFit(el, 'adaptive'), 30)
           }
         }
       })
@@ -188,8 +205,8 @@ export default function ClassRoom() {
       try {
         await client.publish(cameraTrack)
         if (localEl) {
-          cameraTrack.play(localEl, { fit: 'contain', mirror: true })
-          setTimeout(() => applyVideoFit(localEl, 'contain'), 30)
+          cameraTrack.play(localEl, { fit: 'cover', mirror: true })
+          setTimeout(() => applyVideoFit(localEl, 'cover'), 30)
         }
       } catch (e) {
         console.warn('Failed to restore camera after screen share:', e)
@@ -400,8 +417,8 @@ export default function ClassRoom() {
       if (!cameraOn) {
         const localEl = document.getElementById('local-player')
         if (localEl) {
-          t.play(localEl, { fit: 'contain', mirror: true })
-          setTimeout(() => applyVideoFit(localEl, 'contain'), 30)
+          t.play(localEl, { fit: 'cover', mirror: true })
+          setTimeout(() => applyVideoFit(localEl, 'cover'), 30)
         }
       }
     }
@@ -526,9 +543,13 @@ export default function ClassRoom() {
             </div>
             </div>
           ) : (
-            <div className={`grid h-full gap-4 ${remoteParticipants.length === 1 ? 'grid-cols-1' : remoteParticipants.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
+            <div className={remoteParticipants.length === 1 ? 'flex h-full items-center justify-center' : `grid h-full gap-4 ${remoteParticipants.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
               {remoteParticipants.map((participant) => (
-                <div key={participant.uid} className="relative overflow-hidden rounded-[28px] border border-white/8 bg-[#111827] shadow-xl">
+                <div
+                  key={participant.uid}
+                  className={`relative overflow-hidden rounded-[28px] border border-white/8 bg-[#111827] shadow-xl ${remoteParticipants.length === 1 ? 'aspect-video w-full max-w-5xl' : ''}`}
+                  style={remoteParticipants.length === 1 ? { maxHeight: 'calc(100vh - 220px)' } : undefined}
+                >
                   <div id={`remote-player-${participant.uid}`} className={`absolute inset-0 ${participant.hasVideo ? '' : 'hidden'}`} style={{ background: '#111827' }} />
                   {!participant.hasVideo && (
                     <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-3 bg-gradient-to-b from-[#111827] to-[#0F172A] text-white/80">
@@ -549,7 +570,7 @@ export default function ClassRoom() {
         </div>
 
         {/* Local PiP */}
-        <div id="local-player" className="absolute bottom-24 right-4 z-20 h-40 w-28 overflow-hidden rounded-2xl border-2 border-emerald/40 bg-[#0F172A] shadow-xl" />
+  <div id="local-player" className="absolute right-4 top-4 z-20 h-32 w-24 overflow-hidden rounded-2xl border-2 border-emerald/40 bg-[#0F172A] shadow-xl md:h-40 md:w-28" />
 
         {/* Chat panel */}
         {chatOpen && (
@@ -621,7 +642,6 @@ export default function ClassRoom() {
         [id^="remote-player-"] canvas {
           width: 100% !important;
           height: 100% !important;
-          object-fit: contain !important;
           background: #111827 !important;
         }
       `}</style>
