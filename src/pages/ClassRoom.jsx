@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Mic, MicOff, Video, VideoOff, Phone, PhoneOff,
-  MessageCircle, X, Send, Users, Clock, RotateCcw,
+  MessageCircle, X, Send, Users, Clock, RotateCcw, ScreenShare, ScreenShareOff,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth.jsx'
 import { api, authFetch } from '../lib/api'
@@ -38,6 +38,33 @@ async function createOptimizedLocalTracks(AgoraRTC) {
   return [audioTrack, videoTrack]
 }
 
+function applyVideoFit(target, fit = 'contain') {
+  const container = typeof target === 'string' ? document.getElementById(target) : target
+  if (!container) return
+
+  container.style.background = '#111827'
+
+  const nodes = [
+    container,
+    ...container.querySelectorAll('.agora_video_player, video, canvas'),
+  ]
+
+  nodes.forEach((node) => {
+    if (!(node instanceof HTMLElement)) return
+    node.style.width = '100%'
+    node.style.height = '100%'
+    node.style.objectFit = fit
+    node.style.background = '#111827'
+  })
+}
+
+function isDesktopScreenShareAvailable() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+  const hasDisplayMedia = typeof navigator.mediaDevices?.getDisplayMedia === 'function'
+  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '')
+  return hasDisplayMedia && !isMobile && window.innerWidth >= 768
+}
+
 export default function ClassRoom() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -53,6 +80,7 @@ export default function ClassRoom() {
   const [chatMessages, setChatMessages] = useState([])
   const [remoteParticipants, setRemoteParticipants] = useState([])
   const [elapsed, setElapsed] = useState(0)
+  const [screenSharing, setScreenSharing] = useState(false)
 
   const clientRef = useRef(null)
   const AgoraRef = useRef(null)
@@ -60,6 +88,8 @@ export default function ClassRoom() {
   const dataStreamRef = useRef(null)
   const joinedRef = useRef(false)
   const endedRef = useRef(false)
+
+  const canScreenShare = isDesktopScreenShareAvailable()
 
   const sessionQuery = useQuery({
     queryKey: ['classSession', id],
@@ -86,6 +116,7 @@ export default function ClassRoom() {
     try {
       if (localTracksRef.current.audioTrack) { localTracksRef.current.audioTrack.stop(); localTracksRef.current.audioTrack.close() }
       if (localTracksRef.current.videoTrack) { localTracksRef.current.videoTrack.stop(); localTracksRef.current.videoTrack.close() }
+      if (localTracksRef.current.screenTrack) { localTracksRef.current.screenTrack.stop(); localTracksRef.current.screenTrack.close() }
       localTracksRef.current = {}
       if (clientRef.current) {
         clientRef.current.removeAllListeners?.()
@@ -95,6 +126,7 @@ export default function ClassRoom() {
     clientRef.current = null
     dataStreamRef.current = null
     setJoined(false)
+    setScreenSharing(false)
     setRemoteParticipants([])
   }, [])
 
@@ -104,12 +136,15 @@ export default function ClassRoom() {
   useEffect(() => {
     if (!joined) return
     const t = setTimeout(() => {
-      const vt = localTracksRef.current.videoTrack
+      const vt = localTracksRef.current.screenTrack || localTracksRef.current.videoTrack
       const el = document.getElementById('local-player')
-      if (vt && el) vt.play(el)
+      if (vt && el) {
+        vt.play(el, { fit: 'contain', mirror: !screenSharing })
+        setTimeout(() => applyVideoFit(el, 'contain'), 30)
+      }
     }, 100)
     return () => clearTimeout(t)
-  }, [joined])
+  }, [joined, screenSharing])
 
   // Play remote videos
   useEffect(() => {
@@ -120,12 +155,86 @@ export default function ClassRoom() {
         const ru = clientRef.current?.remoteUsers?.find((u) => String(u.uid) === String(uid))
         if (ru?.videoTrack) {
           const el = document.getElementById(`remote-player-${uid}`)
-          if (el) ru.videoTrack.play(el)
+          if (el) {
+            ru.videoTrack.play(el, { fit: 'contain' })
+            setTimeout(() => applyVideoFit(el, 'contain'), 30)
+          }
         }
       })
     }, 100)
     return () => clearTimeout(t)
   }, [remoteParticipants, joined])
+
+  const stopScreenShare = useCallback(async () => {
+    const client = clientRef.current
+    const screenTrack = localTracksRef.current.screenTrack
+    const cameraTrack = localTracksRef.current.videoTrack
+    if (!client || !screenTrack) return
+
+    try {
+      await client.unpublish(screenTrack)
+    } catch {}
+
+    try {
+      screenTrack.stop()
+      screenTrack.close()
+    } catch {}
+
+    localTracksRef.current.screenTrack = null
+    setScreenSharing(false)
+
+    const localEl = document.getElementById('local-player')
+    if (cameraTrack && cameraOn) {
+      try {
+        await client.publish(cameraTrack)
+        if (localEl) {
+          cameraTrack.play(localEl, { fit: 'contain', mirror: true })
+          setTimeout(() => applyVideoFit(localEl, 'contain'), 30)
+        }
+      } catch (e) {
+        console.warn('Failed to restore camera after screen share:', e)
+      }
+    } else if (localEl) {
+      localEl.innerHTML = ''
+    }
+  }, [cameraOn])
+
+  const startScreenShare = useCallback(async () => {
+    const AgoraRTC = AgoraRef.current
+    const client = clientRef.current
+    const cameraTrack = localTracksRef.current.videoTrack
+    if (!AgoraRTC || !client || !canScreenShare || screenSharing) return
+
+    try {
+      const createdTrack = await AgoraRTC.createScreenVideoTrack({
+        encoderConfig: '1080p_1',
+        optimizationMode: 'detail',
+      })
+      const screenTrack = Array.isArray(createdTrack) ? createdTrack[0] : createdTrack
+      if (!screenTrack) throw new Error('Screen sharing is not available on this browser')
+
+      try {
+        if (cameraTrack) await client.unpublish(cameraTrack)
+      } catch {}
+
+      localTracksRef.current.screenTrack = screenTrack
+      screenTrack.on?.('track-ended', () => {
+        void stopScreenShare()
+      })
+
+      await client.publish(screenTrack)
+      setScreenSharing(true)
+
+      const localEl = document.getElementById('local-player')
+      if (localEl) {
+        screenTrack.play(localEl, { fit: 'contain', mirror: false })
+        setTimeout(() => applyVideoFit(localEl, 'contain'), 30)
+      }
+    } catch (e) {
+      console.error('Screen share failed:', e)
+      await stopScreenShare()
+    }
+  }, [canScreenShare, screenSharing, stopScreenShare])
 
   const upsertRemoteParticipant = (uid, patch = {}) => {
     const normalizedUid = Number(uid) || uid
@@ -283,8 +392,27 @@ export default function ClassRoom() {
     if (t) { await t.setEnabled(!micOn); setMicOn((v) => !v) }
   }
   const toggleCamera = async () => {
+    if (screenSharing) return
     const t = localTracksRef.current.videoTrack
-    if (t) { await t.setEnabled(!cameraOn); setCameraOn((v) => !v) }
+    if (t) {
+      await t.setEnabled(!cameraOn)
+      setCameraOn((v) => !v)
+      if (!cameraOn) {
+        const localEl = document.getElementById('local-player')
+        if (localEl) {
+          t.play(localEl, { fit: 'contain', mirror: true })
+          setTimeout(() => applyVideoFit(localEl, 'contain'), 30)
+        }
+      }
+    }
+  }
+
+  const toggleScreenShare = async () => {
+    if (screenSharing) {
+      await stopScreenShare()
+      return
+    }
+    await startScreenShare()
   }
 
   const sendChat = async () => {
@@ -459,9 +587,23 @@ export default function ClassRoom() {
         <button onClick={toggleMic} className={`flex h-12 w-12 items-center justify-center rounded-full transition ${micOn ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-rose/20 text-rose'}`}>
           {micOn ? <Mic size={20} /> : <MicOff size={20} />}
         </button>
-        <button onClick={toggleCamera} className={`flex h-12 w-12 items-center justify-center rounded-full transition ${cameraOn ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-rose/20 text-rose'}`}>
+        <button
+          onClick={toggleCamera}
+          disabled={screenSharing}
+          title={screenSharing ? 'Stop screen sharing to use camera controls' : 'Toggle camera'}
+          className={`flex h-12 w-12 items-center justify-center rounded-full transition ${cameraOn ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-rose/20 text-rose'} ${screenSharing ? 'cursor-not-allowed opacity-50' : ''}`}
+        >
           {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
         </button>
+        {canScreenShare && (
+          <button
+            onClick={toggleScreenShare}
+            title={screenSharing ? 'Stop sharing screen' : 'Share screen'}
+            className={`flex h-12 w-12 items-center justify-center rounded-full transition ${screenSharing ? 'bg-sky-500/20 text-sky-300' : 'bg-white/10 text-white hover:bg-white/15'}`}
+          >
+            {screenSharing ? <ScreenShareOff size={20} /> : <ScreenShare size={20} />}
+          </button>
+        )}
         <button onClick={() => setChatOpen((v) => !v)} className={`flex h-12 w-12 items-center justify-center rounded-full transition ${chatOpen ? 'bg-emerald/20 text-emerald' : 'bg-white/10 text-white hover:bg-white/15'}`}>
           <MessageCircle size={20} />
         </button>
@@ -469,6 +611,20 @@ export default function ClassRoom() {
           {user?.role === 'teacher' ? <Phone size={22} className="rotate-[135deg]" /> : <PhoneOff size={22} />}
         </button>
       </div>
+
+      <style>{`
+        #local-player .agora_video_player,
+        [id^="remote-player-"] .agora_video_player,
+        #local-player video,
+        [id^="remote-player-"] video,
+        #local-player canvas,
+        [id^="remote-player-"] canvas {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain !important;
+          background: #111827 !important;
+        }
+      `}</style>
     </div>
   )
 }
