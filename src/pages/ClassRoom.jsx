@@ -7,7 +7,6 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../lib/auth.jsx'
 import { api, authFetch } from '../lib/api'
-import './ClassRoom.css'
 
 function hashStringToUid(value = '') {
   let hash = 0
@@ -29,10 +28,10 @@ async function createOptimizedLocalTracks(AgoraRTC) {
   return [audioTrack, videoTrack]
 }
 
-function applyVideoFit(target, fit = 'cover') {
+function applyVideoFit(target, fit = 'contain') {
   const container = typeof target === 'string' ? document.getElementById(target) : target
   if (!container) return
-  container.style.background = '#0d1120'
+  container.style.background = '#020617'
   const nodes = [container, ...container.querySelectorAll('.agora_video_player, video, canvas')]
   nodes.forEach((node) => {
     if (!(node instanceof HTMLElement)) return
@@ -41,13 +40,13 @@ function applyVideoFit(target, fit = 'cover') {
       const sw = node.videoWidth || 0, sh = node.videoHeight || 0
       const cw = container.clientWidth || 0, ch = container.clientHeight || 0
       if (sw > 0 && sh > 0 && cw > 0 && ch > 0) {
-        resolved = Math.abs(sw / sh - cw / ch) > 0.38 ? 'contain' : 'cover'
-      } else resolved = 'cover'
+        resolved = Math.abs(sw / sh - cw / ch) > 0.38 ? 'contain' : 'contain'
+      } else resolved = 'contain'
     }
     node.style.width = '100%'
     node.style.height = '100%'
     node.style.objectFit = resolved
-    node.style.background = '#0d1120'
+    node.style.background = '#020617'
   })
 }
 
@@ -59,12 +58,11 @@ function isDesktopScreenShareAvailable() {
 }
 
 function getGridClass(count) {
-  if (count <= 1) return 'cr-grid-1'
-  if (count === 2) return 'cr-grid-2'
-  if (count === 3) return 'cr-grid-3'
-  if (count === 4) return 'cr-grid-4'
-  if (count <= 6) return 'cr-grid-6'
-  return 'cr-grid-many'
+  if (count <= 1) return 'grid-cols-1'
+  if (count === 2) return 'grid-cols-1 md:grid-cols-2'
+  if (count <= 4) return 'grid-cols-2'
+  if (count <= 6) return 'grid-cols-2 md:grid-cols-3'
+  return 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
 }
 
 export default function ClassRoom() {
@@ -189,8 +187,8 @@ export default function ClassRoom() {
       const vt = localTracksRef.current.screenTrack || localTracksRef.current.videoTrack
       const el = document.getElementById('local-player')
       if (vt && el) {
-        vt.play(el, { fit: screenSharing ? 'contain' : 'cover', mirror: !screenSharing })
-        setTimeout(() => applyVideoFit(el, screenSharing ? 'contain' : 'cover'), 30)
+        vt.play(el, { fit: 'contain', mirror: !screenSharing })
+        setTimeout(() => applyVideoFit(el, 'contain'), 30)
       }
     }, 100)
     return () => clearTimeout(t)
@@ -206,8 +204,8 @@ export default function ClassRoom() {
         if (ru?.videoTrack) {
           const el = document.getElementById(`remote-player-${uid}`)
           if (el) {
-            ru.videoTrack.play(el, { fit: 'cover' })
-            setTimeout(() => applyVideoFit(el, 'adaptive'), 30)
+            ru.videoTrack.play(el, { fit: 'contain' })
+            setTimeout(() => applyVideoFit(el, 'contain'), 30)
           }
         }
       })
@@ -228,7 +226,7 @@ export default function ClassRoom() {
     if (cameraTrack && cameraOn) {
       try {
         await client.publish(cameraTrack)
-        if (localEl) { cameraTrack.play(localEl, { fit: 'cover', mirror: true }); setTimeout(() => applyVideoFit(localEl, 'cover'), 30) }
+        if (localEl) { cameraTrack.play(localEl, { fit: 'contain', mirror: true }); setTimeout(() => applyVideoFit(localEl, 'contain'), 30) }
       } catch {}
     } else if (localEl) { localEl.innerHTML = '' }
   }, [cameraOn])
@@ -368,7 +366,7 @@ export default function ClassRoom() {
       await t.setEnabled(!cameraOn); setCameraOn((v) => !v)
       if (!cameraOn) {
         const el = document.getElementById('local-player')
-        if (el) { t.play(el, { fit: 'cover', mirror: true }); setTimeout(() => applyVideoFit(el, 'cover'), 30) }
+        if (el) { t.play(el, { fit: 'contain', mirror: true }); setTimeout(() => applyVideoFit(el, 'contain'), 30) }
       }
     }
   }
@@ -393,9 +391,9 @@ export default function ClassRoom() {
   /* ── LOADING ── */
   if (sessionQuery.isLoading) {
     return (
-      <div className="cr-fullscreen">
-        <div className="cr-spinner" />
-        <p className="cr-loading-text">Preparing Classroom…</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white">
+        <div className="h-12 w-12 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+        <p className="mt-4 text-slate-400 text-sm font-medium">Preparing Classroom…</p>
       </div>
     )
   }
@@ -403,11 +401,15 @@ export default function ClassRoom() {
   /* ── ERROR ── */
   if (error) {
     return (
-      <div className="cr-fullscreen">
-        <div className="cr-error-icon"><PhoneOff size={28} /></div>
-        <h2 className="cr-error-title">Something went wrong</h2>
-        <p className="cr-error-msg">{error}</p>
-        <button onClick={goBack} className="cr-error-back">Go Back</button>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white px-6">
+        <div className="p-4 bg-red-500/10 rounded-full mb-4">
+          <PhoneOff size={32} className="text-red-500" />
+        </div>
+        <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
+        <p className="text-slate-400 text-center max-w-md mb-8">{error}</p>
+        <button onClick={goBack} className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-medium transition-colors border border-slate-700">
+          Go Back
+        </button>
       </div>
     )
   }
@@ -415,20 +417,47 @@ export default function ClassRoom() {
   /* ── LOBBY ── */
   if (!joined) {
     return (
-      <div className="cr-lobby">
-        <button onClick={goBack} className="cr-lobby-back"><RotateCcw size={18} /></button>
-        <div className="cr-lobby-card">
-          <div className="cr-lobby-avatar">{(user?.full_name || '?').charAt(0).toUpperCase()}</div>
-          <p className="cr-lobby-name">{user?.full_name || 'You'}</p>
-          <p className="cr-lobby-role">{user?.role === 'teacher' ? '🎓 Teacher' : '📖 Student'}</p>
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 relative">
+        <button onClick={goBack} className="absolute top-6 left-6 p-2.5 bg-slate-800/80 hover:bg-slate-700 rounded-full transition-colors border border-slate-700">
+          <RotateCcw size={18} />
+        </button>
+
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-3xl font-bold shadow-lg shadow-blue-500/20 mb-4">
+            {(user?.full_name || '?').charAt(0).toUpperCase()}
+          </div>
+          <p className="text-xl font-semibold">{user?.full_name || 'You'}</p>
+          <p className="text-slate-400 text-sm mt-1 capitalize">{user?.role === 'teacher' ? '🎓 Teacher' : '📖 Student'}</p>
         </div>
-        <h2 className="cr-lobby-subject">{session?.subject || 'Class Session'}</h2>
-        <p className="cr-lobby-host">{user?.role === 'teacher' ? 'You are hosting' : `With ${session?.teacher_name || 'Teacher'}`}</p>
-        {session?.duration_minutes && (
-          <div className="cr-lobby-duration"><Clock size={12} /> {session.duration_minutes} min</div>
-        )}
-        <button onClick={joinClass} disabled={joining} className="cr-lobby-join">
-          {joining ? 'Connecting…' : user?.role === 'teacher' ? 'Start Class' : 'Join Now'}
+
+        <div className="text-center mb-8 max-w-sm">
+          <h2 className="text-3xl md:text-4xl font-bold mb-3 bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+            {session?.subject || 'Class Session'}
+          </h2>
+          <p className="text-slate-400">
+            {user?.role === 'teacher' ? 'You are hosting this session' : `With ${session?.teacher_name || 'Teacher'}`}
+          </p>
+          {session?.duration_minutes && (
+            <div className="inline-flex items-center gap-1.5 mt-4 text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-full border border-slate-800">
+              <Clock size={12} />
+              <span>{session.duration_minutes} min</span>
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={joinClass}
+          disabled={joining}
+          className="px-10 py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-full font-semibold text-lg transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 active:scale-95"
+        >
+          {joining ? (
+            <span className="flex items-center gap-2">
+              <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Connecting…
+            </span>
+          ) : (
+            user?.role === 'teacher' ? 'Start Class' : 'Join Now'
+          )}
         </button>
       </div>
     )
@@ -439,52 +468,63 @@ export default function ClassRoom() {
   const tileCount = allTiles.length || 1
 
   return (
-    <div className="cr-root">
+    <div className="flex flex-col h-screen bg-slate-950 text-white overflow-hidden selection:bg-blue-500/30">
       {/* Top bar */}
-      <div className="cr-topbar">
-        <div className="cr-topbar-left">
-          <div className="cr-live-badge">
-            <span className="cr-live-dot" />
-            <span className="cr-live-text">LIVE</span>
+      <div className="shrink-0 h-14 md:h-16 flex items-center justify-between px-4 md:px-6 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 z-30">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/20">
+            <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+            <span className="text-red-400 text-[11px] font-bold tracking-wider">LIVE</span>
           </div>
-          <span className="cr-timer">{fmt(elapsed)}</span>
+          <span className="font-mono text-sm text-slate-300 tabular-nums">{fmt(elapsed)}</span>
         </div>
-        <span className="cr-topbar-center">{session?.subject || 'Live Class'}</span>
-        <div className="cr-topbar-right">
-          <div className="cr-participants-badge">
+
+        <span className="hidden sm:block font-medium text-sm text-slate-200 truncate max-w-[200px] md:max-w-md">
+          {session?.subject || 'Live Class'}
+        </span>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs text-slate-300 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
             <Users size={13} />
-            <span>{1 + remoteParticipants.length}</span>
+            <span className="font-medium">{1 + remoteParticipants.length}</span>
           </div>
         </div>
       </div>
 
       {/* Video stage */}
-      <div className="cr-stage">
-        <div className="cr-grid-wrapper">
+      <div className="flex-1 relative bg-slate-950">
+        <div className="absolute inset-0 flex items-center justify-center p-2 md:p-4">
           {allTiles.length === 0 ? (
-            <div className="cr-waiting">
-              <div className="cr-waiting-avatar">👤</div>
-              <p className="cr-waiting-text">Waiting for participant…</p>
-              <div className="cr-waiting-status">
-                <span className="cr-waiting-status-dot" />
-                <span className="cr-waiting-status-text">Connected</span>
+            <div className="flex flex-col items-center justify-center text-slate-500">
+              <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center text-4xl mb-4 border border-slate-700">
+                👤
+              </div>
+              <p className="text-lg font-medium text-slate-400 mb-1">Waiting for participant…</p>
+              <div className="flex items-center gap-2 text-sm text-emerald-400 mt-2">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                <span>Connected</span>
               </div>
             </div>
           ) : (
-            <div className={`cr-video-grid ${getGridClass(tileCount)}`}>
+            <div className={`w-full h-full grid gap-2 md:gap-4 ${getGridClass(tileCount)}`}>
               {allTiles.map((p) => (
-                <div key={p.uid} className={`cr-tile ${tileCount === 1 ? 'cr-tile-solo' : ''}`}>
-                  <div id={`remote-player-${p.uid}`} className={`cr-tile-video ${p.hasVideo ? '' : 'hidden'}`} />
+                <div
+                  key={p.uid}
+                  className={`relative bg-slate-800 rounded-2xl overflow-hidden shadow-xl border border-slate-700/50 ${tileCount === 1 ? 'max-w-5xl max-h-full aspect-video mx-auto' : 'w-full h-full min-h-[180px]'}`}
+                >
+                  <div id={`remote-player-${p.uid}`} className={`absolute inset-0 ${p.hasVideo ? '' : 'hidden'}`} />
                   {!p.hasVideo && (
-                    <div className="cr-tile-avatar">
-                      <div className="cr-avatar-circle">{String(p.uid).charAt(0).toUpperCase()}</div>
-                      <span className="cr-avatar-name">Participant</span>
-                      <span className="cr-avatar-sub">Camera off</span>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800">
+                      <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-slate-700 flex items-center justify-center text-2xl font-bold text-slate-300 mb-3">
+                        {String(p.uid).charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-sm text-slate-300 font-medium">Participant</span>
+                      <span className="text-xs text-slate-500 mt-1">Camera off</span>
                     </div>
                   )}
-                  <div className="cr-tile-label">
-                    <span className="cr-tile-label-text">Participant {p.uid}</span>
-                    {!p.hasAudio && <MicOff size={12} className="cr-tile-mic-icon muted" />}
+                  <div className="absolute bottom-0 left-0 right-0 px-3 py-2.5 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center justify-between">
+                    <span className="text-xs text-white/90 font-medium">Participant {p.uid}</span>
+                    {!p.hasAudio && <MicOff size={14} className="text-red-400 shrink-0" />}
                   </div>
                 </div>
               ))}
@@ -493,77 +533,132 @@ export default function ClassRoom() {
         </div>
 
         {/* Local PiP */}
-        <div ref={pipRef} className="cr-pip">
-          <div id="local-player" style={{ width: '100%', height: '100%' }} />
-          <span className="cr-pip-label">You</span>
+        <div
+          ref={pipRef}
+          className="absolute bottom-20 right-2 md:bottom-24 md:right-5 w-28 h-20 sm:w-36 sm:h-24 md:w-44 md:h-32 bg-slate-800 rounded-xl overflow-hidden shadow-2xl border-2 border-slate-600/50 z-20 cursor-move select-none touch-none"
+        >
+          <div id="local-player" className="w-full h-full" />
+          <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white/90 px-1.5 py-0.5 rounded">
+            You
+          </span>
         </div>
 
         {/* Chat panel */}
         {chatOpen && (
-          <div className="cr-chat">
-            <div className="cr-chat-header">
-              <span className="cr-chat-title">Chat</span>
-              <button onClick={() => setChatOpen(false)} className="cr-chat-close"><X size={16} /></button>
+          <div className="absolute right-0 top-0 bottom-20 w-full sm:w-80 bg-slate-900/95 backdrop-blur-md border-l border-slate-800 flex flex-col z-30 animate-in slide-in-from-right duration-300">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
+              <span className="font-semibold text-sm">Chat</span>
+              <button
+                onClick={() => setChatOpen(false)}
+                className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <X size={16} className="text-slate-400" />
+              </button>
             </div>
-            <div className="cr-chat-messages">
-              {chatMessages.length === 0 && <p className="cr-chat-empty">No messages yet</p>}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {chatMessages.length === 0 && (
+                <p className="text-center text-slate-500 text-sm py-8">No messages yet</p>
+              )}
               {chatMessages.map((m) => (
-                <div key={m.id} className={`cr-msg ${m.mine ? 'mine' : 'theirs'}`}>
-                  {!m.mine && <p className="cr-msg-sender">{m.senderName}</p>}
-                  <p>{m.text}</p>
-                  <p className="cr-msg-time">{new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                <div key={m.id} className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
+                  {!m.mine && (
+                    <span className="text-[11px] text-slate-400 mb-1 ml-1">{m.senderName}</span>
+                  )}
+                  <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm ${m.mine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-slate-800 text-slate-200 rounded-bl-md border border-slate-700'}`}>
+                    <p className="leading-relaxed">{m.text}</p>
+                    <p className={`text-[10px] mt-1 ${m.mine ? 'text-blue-200' : 'text-slate-500'}`}>
+                      {new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
                 </div>
               ))}
               <div ref={chatBottomRef} />
             </div>
-            <div className="cr-chat-input-wrap">
-              <input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-                placeholder="Type a message…"
-                className="cr-chat-input"
-              />
-              <button onClick={sendChat} className="cr-chat-send"><Send size={14} /></button>
+            <div className="p-3 border-t border-slate-800 shrink-0">
+              <div className="flex items-center gap-2">
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+                  placeholder="Type a message…"
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                />
+                <button
+                  onClick={sendChat}
+                  className="p-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors shadow-lg shadow-blue-600/20"
+                >
+                  <Send size={16} />
+                </button>
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* Bottom controls */}
-      <div className="cr-controls">
-        <div className="cr-ctrl-group">
-          <button onClick={toggleMic} className={`cr-ctrl-btn ${micOn ? '' : 'off'}`}>
-            {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-            <span className="cr-tooltip">{micOn ? 'Mute' : 'Unmute'}</span>
-          </button>
-          <button onClick={toggleCamera} disabled={screenSharing} className={`cr-ctrl-btn ${cameraOn ? '' : 'off'} ${screenSharing ? '' : ''}`}>
-            {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
-            <span className="cr-tooltip">{cameraOn ? 'Stop Video' : 'Start Video'}</span>
-          </button>
-        </div>
-
-        <div className="cr-ctrl-divider" />
-
-        <div className="cr-ctrl-group">
-          {canScreenShare && (
-            <button onClick={toggleScreenShare} className={`cr-ctrl-btn ${screenSharing ? 'screen-active' : ''}`}>
-              {screenSharing ? <ScreenShareOff size={20} /> : <ScreenShare size={20} />}
-              <span className="cr-tooltip">{screenSharing ? 'Stop Sharing' : 'Share Screen'}</span>
+      <div className="shrink-0 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 px-4 py-2.5 md:py-3 z-40">
+        <div className="flex items-center justify-center gap-2 md:gap-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleMic}
+              className={`group relative p-3 md:p-3.5 rounded-full transition-all active:scale-95 ${micOn ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20'}`}
+            >
+              {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+              <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                {micOn ? 'Mute' : 'Unmute'}
+              </span>
             </button>
-          )}
-          <button onClick={() => setChatOpen((v) => !v)} className={`cr-ctrl-btn ${chatOpen ? 'active' : ''}`}>
-            <MessageCircle size={20} />
-            <span className="cr-tooltip">Chat</span>
+
+            <button
+              onClick={toggleCamera}
+              disabled={screenSharing}
+              className={`group relative p-3 md:p-3.5 rounded-full transition-all active:scale-95 ${screenSharing ? 'opacity-50 cursor-not-allowed bg-slate-800 text-slate-500' : cameraOn ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20'}`}
+            >
+              {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+              <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                {cameraOn ? 'Stop Video' : 'Start Video'}
+              </span>
+            </button>
+          </div>
+
+          <div className="w-px h-8 bg-slate-700 mx-1" />
+
+          <div className="flex items-center gap-2">
+            {canScreenShare && (
+              <button
+                onClick={toggleScreenShare}
+                className={`group relative p-3 md:p-3.5 rounded-full transition-all active:scale-95 ${screenSharing ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
+              >
+                {screenSharing ? <ScreenShareOff size={20} /> : <ScreenShare size={20} />}
+                <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                  {screenSharing ? 'Stop Sharing' : 'Share Screen'}
+                </span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setChatOpen((v) => !v)}
+              className={`group relative p-3 md:p-3.5 rounded-full transition-all active:scale-95 ${chatOpen ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
+            >
+              <MessageCircle size={20} />
+              <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                Chat
+              </span>
+            </button>
+          </div>
+
+          <div className="w-px h-8 bg-slate-700 mx-1" />
+
+          <button
+            onClick={endOrLeave}
+            className="group relative p-3 md:p-3.5 rounded-full bg-red-600 hover:bg-red-500 text-white transition-all active:scale-95 shadow-lg shadow-red-600/20"
+          >
+            {user?.role === 'teacher' ? <Phone size={20} className="rotate-[135deg]" /> : <PhoneOff size={20} />}
+            <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+              {user?.role === 'teacher' ? 'End Class' : 'Leave'}
+            </span>
           </button>
         </div>
-
-        <div className="cr-ctrl-divider" />
-
-        <button onClick={endOrLeave} className="cr-end-btn">
-          {user?.role === 'teacher' ? <Phone size={20} className="rotate-[135deg]" /> : <PhoneOff size={20} />}
-          <span className="cr-tooltip">{user?.role === 'teacher' ? 'End Class' : 'Leave'}</span>
-        </button>
       </div>
     </div>
   )
