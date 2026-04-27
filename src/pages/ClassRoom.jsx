@@ -16,6 +16,28 @@ function hashStringToUid(value = '') {
   return Math.abs(hash) % 1000000000 || 1
 }
 
+async function createOptimizedLocalTracks(AgoraRTC) {
+  const audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+    AEC: true,
+    AGC: true,
+    ANS: true,
+    encoderConfig: {
+      sampleRate: 48000,
+      stereo: false,
+      bitrate: 64,
+    },
+    microphoneId: undefined,
+  })
+
+  const videoTrack = await AgoraRTC.createCameraVideoTrack({
+    encoderConfig: '720p_2',
+    optimizationMode: 'detail',
+  })
+
+  try { audioTrack.setVolume?.(85) } catch {}
+  return [audioTrack, videoTrack]
+}
+
 export default function ClassRoom() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -161,7 +183,10 @@ export default function ClassRoom() {
             hasAudio: mediaType === 'audio' ? true : Boolean(remoteUser.hasAudio),
           })
           await client.subscribe(remoteUser, mediaType)
-          if (mediaType === 'audio') remoteUser.audioTrack?.play()
+          if (mediaType === 'audio') {
+            try { remoteUser.audioTrack?.setVolume?.(80) } catch {}
+            remoteUser.audioTrack?.play()
+          }
         } catch (e) { console.warn('Subscribe error:', e) }
       }
       client.on('user-joined', (remoteUser) => {
@@ -210,7 +235,7 @@ export default function ClassRoom() {
 
       // Local tracks
       try {
-        const [at, vt] = await AgoraRTC.createMicrophoneAndCameraTracks()
+        const [at, vt] = await createOptimizedLocalTracks(AgoraRTC)
         localTracksRef.current = { audioTrack: at, videoTrack: vt }
         await client.publish([at, vt])
         setMicOn(true)
