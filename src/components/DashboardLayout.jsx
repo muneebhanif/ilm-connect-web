@@ -41,6 +41,7 @@ const TEACHER_TABS = [
   { id: 'overview', label: 'Overview', icon: Sparkles },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'schedule', label: 'Schedule', icon: Calendar },
+  { id: 'students', label: 'Students', icon: Users },
   { id: 'courses', label: 'Courses', icon: BookOpen },
   { id: 'lessons', label: 'Lessons', icon: ListVideo },
   { id: 'availability', label: 'Availability', icon: LayoutGrid },

@@ -21,6 +21,136 @@ const DOCUMENT_TYPES = [
   { id: 'identity', label: 'Identity proof', helper: 'Passport, national ID, or driving licence.' },
   { id: 'resume', label: 'Resume / experience', helper: 'CV, portfolio summary, or work history.' },
 ]
+const ATTENDANCE_STATUS_OPTIONS = [
+  { id: 'present', label: 'Present', tone: 'emerald' },
+  { id: 'late', label: 'Late', tone: 'gold' },
+  { id: 'absent', label: 'Absent', tone: 'rose' },
+  { id: 'excused', label: 'Excused', tone: 'teal' },
+]
+
+function formatCompactDateLabel(value) {
+  const parsed = new Date(value || '')
+  if (Number.isNaN(parsed.getTime())) return 'Not scheduled'
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function getStudentId(student = {}, fallback = '') {
+  return student.id || student.student_id || student.user_id || student.profile_id || fallback
+}
+
+function getStudentName(student = {}, fallback = 'Student') {
+  return student.name || student.full_name || student.student_name || student.students?.name || fallback
+}
+
+function getStudentEmail(student = {}) {
+  return student.email || student.student_email || student.students?.email || student.profile?.email || ''
+}
+
+function getStudentPhone(student = {}) {
+  return student.phone || student.student_phone || student.students?.phone || student.profile?.phone || ''
+}
+
+function getStudentGuardianName(student = {}) {
+  return student.guardian_name || student.parent_name || student.guardian?.name || student.parent?.full_name || ''
+}
+
+function getStudentAttendancePercentage(student = {}) {
+  const raw = student.attendance_summary?.percentage ?? student.attendance_percentage ?? student.attendancePercent ?? 0
+  const numeric = Number.parseFloat(String(raw).replace(/[^\d.]/g, ''))
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
+function formatStudentAttendance(student = {}) {
+  if (student.attendance) return student.attendance
+  const percentage = getStudentAttendancePercentage(student)
+  const summary = student.attendance_summary || {}
+  const present = Number(summary.present ?? summary.present_count ?? summary.attended ?? 0)
+  const total = Number(summary.total ?? summary.total_classes ?? summary.total_sessions ?? summary.booked ?? 0)
+  if (total > 0) return `${Math.round(percentage)}% (${present}/${total})`
+  if (percentage > 0) return `${Math.round(percentage)}%`
+  return 'Not tracked yet'
+}
+
+function getAttendanceToneFromPercentage(percentage = 0) {
+  if (percentage >= 75) return 'emerald'
+  if (percentage >= 50) return 'gold'
+  return 'rose'
+}
+
+function getAttendanceStatusTone(status = 'unmarked') {
+  const option = ATTENDANCE_STATUS_OPTIONS.find((item) => item.id === status)
+  if (option) return option.tone
+  return 'ink'
+}
+
+function getAttendanceStatusLabel(status = 'unmarked') {
+  const option = ATTENDANCE_STATUS_OPTIONS.find((item) => item.id === status)
+  if (option) return option.label
+  return 'Unmarked'
+}
+
+function readStudentManagerState(storageKey) {
+  if (typeof window === 'undefined') return { attendance: {}, notes: {} }
+  try {
+    const raw = window.localStorage.getItem(storageKey)
+    if (!raw) return { attendance: {}, notes: {} }
+    const parsed = JSON.parse(raw)
+    return {
+      attendance: parsed?.attendance && typeof parsed.attendance === 'object' ? parsed.attendance : {},
+      notes: parsed?.notes && typeof parsed.notes === 'object' ? parsed.notes : {},
+    }
+  } catch {
+    return { attendance: {}, notes: {} }
+  }
+}
+
+function isToday(value) {
+  const parsed = new Date(value || '')
+  if (Number.isNaN(parsed.getTime())) return false
+  const now = new Date()
+  return parsed.getFullYear() === now.getFullYear() && parsed.getMonth() === now.getMonth() && parsed.getDate() === now.getDate()
+}
+
+function normalizeStudentRecord(student = {}, schedule = [], attendanceState = {}, fallbackIndex = 0) {
+  const id = String(getStudentId(student, `student-${fallbackIndex}`))
+  const name = getStudentName(student)
+  const matchingSessions = schedule.filter((session) => {
+    const sessionStudentId = String(getStudentId(session.students || {}, session.student_id || ''))
+    const sessionStudentName = getStudentName(session.students || {}, '')
+    return sessionStudentId === id || (sessionStudentName && sessionStudentName.toLowerCase() === name.toLowerCase())
+  })
+  const nextSession = matchingSessions
+    .filter((session) => {
+      const status = String(session.status || '').toLowerCase()
+      return status !== 'completed' && status !== 'cancelled' && getSessionEndTimeValue(session) >= Date.now()
+    })
+    .sort((a, b) => getSessionTimeValue(a.session_date) - getSessionTimeValue(b.session_date))[0]
+  const attendancePercentage = getStudentAttendancePercentage(student)
+  const latestStatus = attendanceState?.[id]?.status || 'unmarked'
+
+  return {
+    ...student,
+    id,
+    name,
+    email: getStudentEmail(student),
+    phone: getStudentPhone(student),
+    guardianName: getStudentGuardianName(student),
+    course: student.course || student.course_title || student.current_course || nextSession?.courses?.title || 'Course pending',
+    nextClass: student.nextClass || (nextSession ? formatSessionDateLabel(nextSession.session_date) : 'Not scheduled'),
+    attendancePercentage,
+    attendanceLabel: formatStudentAttendance(student),
+    attendanceTone: getAttendanceToneFromPercentage(attendancePercentage),
+    latestStatus,
+    latestStatusLabel: getAttendanceStatusLabel(latestStatus),
+    latestStatusTone: getAttendanceStatusTone(latestStatus),
+    upcomingSessions: matchingSessions.filter((session) => getSessionEndTimeValue(session) >= Date.now()).length,
+  }
+}
 
 function sortHours(slots = []) {
   return [...new Set(slots)].sort((a, b) => HOURS.indexOf(a) - HOURS.indexOf(b))
@@ -175,11 +305,17 @@ function PageHeader({ title, description, actions, children }) {
 export default function TeacherDashboard() {
   const { user, token } = useAuth()
   const qc = useQueryClient()
-  const { activeTab } = useOutletContext()
+  const { activeTab, setActiveTab } = useOutletContext()
   const [selectedCourseId, setSelectedCourseId] = useState(null)
+  const [selectedStudentId, setSelectedStudentId] = useState(null)
   const [courseThumbnailFile, setCourseThumbnailFile] = useState(null)
   const [courseThumbnailPreview, setCourseThumbnailPreview] = useState('')
   const [lessonFile, setLessonFile] = useState(null)
+  const [studentSearch, setStudentSearch] = useState('')
+  const [studentFilter, setStudentFilter] = useState('all')
+  const [studentAttendanceState, setStudentAttendanceState] = useState({})
+  const [studentNotes, setStudentNotes] = useState({})
+  const [studentStateHydrated, setStudentStateHydrated] = useState(false)
   const [profileForm, setProfileForm] = useState({ full_name: '', bio: '', hourly_rate: '', weekly_package_price: '', monthly_package_price: '', subjects: '', languages: '', gender: '', timezone: '', phone: '' })
   const [courseForm, setCourseForm] = useState({ id: '', title: '', description: '', subject: '', level: 'beginner', price: '', is_free: true, total_lessons: '', thumbnail_url: '' })
   const [lessonForm, setLessonForm] = useState({ title: '', description: '', content_url: '', is_preview: false })
@@ -215,10 +351,99 @@ export default function TeacherDashboard() {
   const completedChecklistCount = profileChecklist.filter((item) => item.done).length
   const profileCompletion = Math.round((completedChecklistCount / profileChecklist.length) * 100)
   const remainingChecklist = profileChecklist.filter((item) => !item.done)
+  const studentStorageKey = `ilm-teacher-students:${user?.id || 'anonymous'}`
+  const studentDirectory = useMemo(
+    () => students.map((student, index) => normalizeStudentRecord(student, schedule, studentAttendanceState, index)),
+    [students, schedule, studentAttendanceState],
+  )
+  const todayAttendanceRows = useMemo(() => {
+    const todaysSessions = schedule.filter((session) => {
+      const status = String(session.status || '').toLowerCase()
+      return status !== 'cancelled' && isToday(session.session_date)
+    })
+
+    if (todaysSessions.length > 0) {
+      return todaysSessions.map((session, index) => {
+        const sessionStudentId = String(getStudentId(session.students || {}, session.student_id || `session-student-${index}`))
+        const matchedStudent = studentDirectory.find((student) => {
+          const sameId = student.id === sessionStudentId
+          const sameName = student.name.toLowerCase() === getStudentName(session.students || {}, '').toLowerCase()
+          return sameId || sameName
+        })
+        const studentId = matchedStudent?.id || sessionStudentId
+        const status = studentAttendanceState?.[studentId]?.status || 'unmarked'
+        return {
+          key: `${session.id || index}-${studentId}`,
+          sessionId: session.id,
+          studentId,
+          studentName: matchedStudent?.name || getStudentName(session.students || {}, 'Student'),
+          courseTitle: session.courses?.title || matchedStudent?.course || 'Course pending',
+          sessionLabel: formatCompactDateLabel(session.session_date),
+          durationMinutes: session.duration_minutes || 60,
+          status,
+        }
+      })
+    }
+
+    return studentDirectory.slice(0, 8).map((student) => ({
+      key: student.id,
+      sessionId: null,
+      studentId: student.id,
+      studentName: student.name,
+      courseTitle: student.course,
+      sessionLabel: student.nextClass,
+      durationMinutes: null,
+      status: student.latestStatus,
+    }))
+  }, [schedule, studentAttendanceState, studentDirectory])
+  const studentsNeedingAttention = useMemo(
+    () => studentDirectory.filter((student) => student.attendancePercentage < 75 || student.latestStatus === 'absent' || student.latestStatus === 'late'),
+    [studentDirectory],
+  )
+  const filteredStudents = useMemo(() => {
+    const query = studentSearch.trim().toLowerCase()
+    return studentDirectory.filter((student) => {
+      const matchesQuery = !query || [student.name, student.course, student.email, student.guardianName]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query))
+
+      const matchesFilter =
+        studentFilter === 'all'
+        || (studentFilter === 'needs-attention' && (student.attendancePercentage < 75 || student.latestStatus === 'absent' || student.latestStatus === 'late'))
+        || (studentFilter === 'unmarked' && student.latestStatus === 'unmarked')
+        || student.latestStatus === studentFilter
+
+      return matchesQuery && matchesFilter
+    })
+  }, [studentDirectory, studentFilter, studentSearch])
+  const selectedStudent = studentDirectory.find((student) => student.id === selectedStudentId) || filteredStudents[0] || studentDirectory[0] || null
+  const markedAttendanceCount = todayAttendanceRows.filter((row) => row.status !== 'unmarked').length
+  const absentTodayCount = todayAttendanceRows.filter((row) => row.status === 'absent').length
+  const attendanceCoverage = todayAttendanceRows.length > 0 ? Math.round((markedAttendanceCount / todayAttendanceRows.length) * 100) : 0
+  const activeStudentCourses = new Set(studentDirectory.map((student) => student.course).filter(Boolean)).size
 
   useEffect(() => { if (teacher?.full_name) setProfileForm({ full_name: teacher.full_name || '', bio: teacher.bio || '', hourly_rate: teacher.hourly_rate ? String(teacher.hourly_rate) : '', weekly_package_price: teacher.weekly_package_price ? String(teacher.weekly_package_price) : '', monthly_package_price: teacher.monthly_package_price ? String(teacher.monthly_package_price) : '', subjects: Array.isArray(teacher.subjects) ? teacher.subjects.join(', ') : '', languages: Array.isArray(teacher.languages) ? teacher.languages.join(', ') : '', gender: teacher.gender || '', timezone: teacher.timezone || '', phone: teacher.phone || '' }) }, [teacher.full_name, teacher.bio, teacher.hourly_rate, teacher.weekly_package_price, teacher.monthly_package_price, teacher.subjects, teacher.languages, teacher.gender, teacher.timezone, teacher.phone])
   useEffect(() => { if (!selectedCourseId && courses.length > 0) setSelectedCourseId(courses[0].id) }, [courses, selectedCourseId])
   useEffect(() => { setAvailabilityDraft(normalizeAvailabilityMap(teacher.availability || {})) }, [teacher.availability])
+  useEffect(() => {
+    const savedState = readStudentManagerState(studentStorageKey)
+    setStudentAttendanceState(savedState.attendance)
+    setStudentNotes(savedState.notes)
+    setStudentStateHydrated(true)
+  }, [studentStorageKey])
+  useEffect(() => {
+    if (!studentStateHydrated || typeof window === 'undefined') return
+    window.localStorage.setItem(studentStorageKey, JSON.stringify({ attendance: studentAttendanceState, notes: studentNotes }))
+  }, [studentAttendanceState, studentNotes, studentStateHydrated, studentStorageKey])
+  useEffect(() => {
+    if (studentDirectory.length === 0) {
+      setSelectedStudentId(null)
+      return
+    }
+    if (!selectedStudentId || !studentDirectory.some((student) => student.id === selectedStudentId)) {
+      setSelectedStudentId(studentDirectory[0].id)
+    }
+  }, [selectedStudentId, studentDirectory])
 
   // Mutations
   const updateProfile = useMutation({ mutationFn: (p) => authFetch(api.updateTeacher(user.id), token, { method: 'PUT', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Profile updated'); qc.invalidateQueries({ queryKey: ['teacherPublicProfile', user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
@@ -239,6 +464,39 @@ export default function TeacherDashboard() {
   const stripeDash = useMutation({ mutationFn: () => authFetch(api.teacherDashboardLink(), token, { method: 'POST' }), onSuccess: (d) => { if (d?.dashboardUrl) window.open(d.dashboardUrl, '_blank') } })
 
   const resetCourseForm = () => { setCourseForm({ id: '', title: '', description: '', subject: '', level: 'beginner', price: '', is_free: true, total_lessons: '', thumbnail_url: '' }); setCourseThumbnailFile(null); setCourseThumbnailPreview('') }
+  const updateStudentAttendance = (studentId, status) => {
+    setStudentAttendanceState((current) => {
+      const next = { ...current }
+      if (!studentId || status === 'unmarked') {
+        delete next[studentId]
+        return next
+      }
+      next[studentId] = { status, updatedAt: new Date().toISOString() }
+      return next
+    })
+  }
+  const markAllStudentsPresent = () => {
+    const now = new Date().toISOString()
+    setStudentAttendanceState((current) => {
+      const next = { ...current }
+      todayAttendanceRows.forEach((row) => {
+        next[row.studentId] = { status: 'present', updatedAt: now }
+      })
+      return next
+    })
+  }
+  const clearAttendanceMarks = () => {
+    setStudentAttendanceState((current) => {
+      const next = { ...current }
+      todayAttendanceRows.forEach((row) => {
+        delete next[row.studentId]
+      })
+      return next
+    })
+  }
+  const updateStudentNote = (studentId, note) => {
+    setStudentNotes((current) => ({ ...current, [studentId]: note }))
+  }
   const toggleAvailabilitySlot = (day, hour) => {
     setAvailabilityDraft((current) => {
       const daySlots = Array.isArray(current?.[day]) ? current[day] : []
@@ -343,6 +601,63 @@ export default function TeacherDashboard() {
       <div className="mt-6">
         <SectionCard title="Student attendance">
           {studentsQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-20" /> : students.length === 0 ? <EmptyState icon={Users} title="No students yet" text="Attendance will appear here once students are enrolled." /> : <div className="space-y-3">{students.slice(0, 8).map((student) => <div key={student.id} className="flex flex-col gap-3 rounded-2xl border border-parchment/50 bg-white p-4 lg:flex-row lg:items-center lg:justify-between"><div><div className="font-semibold text-ink">{student.name || 'Student'}</div><div className="mt-1 text-sm text-bark">{student.course || 'Course pending'}</div><div className="mt-1 text-xs text-bark">Next class: {student.nextClass || '—'}</div></div><div className="flex flex-wrap items-center gap-2"><StatusPill tone={(student.attendance_summary?.percentage || 0) >= 75 ? 'emerald' : (student.attendance_summary?.percentage || 0) >= 50 ? 'gold' : 'rose'}>{student.attendance || '0% (0/0)'}</StatusPill></div></div>)}</div>}
+        </SectionCard>
+      </div>
+    </PageHeader>
+  )
+
+  // ─── STUDENTS ───
+  if (activeTab === 'students') return (
+    <PageHeader title="Students" description="Manage your student roster, mark attendance, and keep follow-up notes for every learner.">
+      <GridList cols="md:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={Users} label="Total students" value={studentDirectory.length} tone="gold" />
+        <StatCard icon={Calendar} label="Today roster" value={todayAttendanceRows.length} tone="emerald" hint={todayAttendanceRows.length > 0 ? `${markedAttendanceCount} marked` : 'No sessions today'} />
+        <StatCard icon={CheckCircle2} label="Attendance coverage" value={`${attendanceCoverage}%`} tone="teal" hint={`${absentTodayCount} absent today`} />
+        <StatCard icon={AlertTriangle} label="Need follow-up" value={studentsNeedingAttention.length} tone="rose" hint={`${activeStudentCourses} active course${activeStudentCourses === 1 ? '' : 's'}`} />
+      </GridList>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <SectionCard
+          title="Attendance register"
+          subtitle="Mark students as present, late, absent, or excused. Quick marks are saved in this dashboard for follow-up."
+          action={
+            <div className="flex flex-wrap gap-2">
+              <button onClick={markAllStudentsPresent} disabled={todayAttendanceRows.length === 0} className="rounded-xl border border-emerald/20 bg-emerald/8 px-3 py-2 text-sm font-semibold text-emerald disabled:opacity-50">Mark all present</button>
+              <button onClick={clearAttendanceMarks} disabled={markedAttendanceCount === 0} className="rounded-xl border border-parchment bg-white px-3 py-2 text-sm font-semibold text-ink-soft disabled:opacity-50">Clear marks</button>
+            </div>
+          }
+        >
+          {studentsQ.isLoading || scheduleQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-28" /> : todayAttendanceRows.length === 0 ? <EmptyState icon={Users} title="No students yet" text="Students appear here once classes are booked or enrollments are created." /> : <div className="space-y-4">{todayAttendanceRows.map((row) => <div key={row.key} className="rounded-[24px] border border-parchment/50 bg-gradient-to-r from-white to-ivory/70 p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusPill tone={getAttendanceStatusTone(row.status)}>{getAttendanceStatusLabel(row.status)}</StatusPill><span className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/70">{row.sessionLabel}</span></div><div className="mt-2 text-lg font-semibold text-ink">{row.studentName}</div><div className="mt-1 text-sm text-bark">{row.courseTitle}</div><div className="mt-1 text-xs text-bark">{row.durationMinutes ? `${row.durationMinutes} min class` : 'Use this row to keep today’s attendance ready.'}</div></div><div className="flex flex-wrap gap-2 lg:max-w-[320px] lg:justify-end">{ATTENDANCE_STATUS_OPTIONS.map((option) => <button key={option.id} onClick={() => updateStudentAttendance(row.studentId, option.id)} className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${row.status === option.id ? option.tone === 'emerald' ? 'bg-emerald text-white' : option.tone === 'gold' ? 'bg-gold text-white' : option.tone === 'rose' ? 'bg-rose text-white' : 'bg-teal text-white' : 'border border-parchment bg-white text-ink-soft hover:border-emerald/20 hover:text-emerald'}`}>{option.label}</button>)}<button onClick={() => updateStudentAttendance(row.studentId, 'unmarked')} className="rounded-xl border border-parchment bg-white px-3 py-2 text-sm font-semibold text-ink-soft hover:border-rose/20 hover:text-rose">Reset</button></div></div></div>)}</div>}
+        </SectionCard>
+
+        <SectionCard title="Students needing attention" subtitle="Keep an eye on low attendance or recently missed learners.">
+          {studentsQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-20" /> : studentsNeedingAttention.length === 0 ? <EmptyState icon={CheckCircle2} title="All students look healthy" text="No attendance risks right now. Keep marking classes to stay on top of engagement." /> : <div className="space-y-3">{studentsNeedingAttention.slice(0, 6).map((student) => <button key={student.id} onClick={() => setSelectedStudentId(student.id)} className={`w-full rounded-[22px] border p-4 text-left transition ${selectedStudent?.id === student.id ? 'border-emerald bg-emerald/6' : 'border-parchment/50 bg-white hover:border-emerald/20'}`}><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-semibold text-ink">{student.name}</div><div className="mt-1 text-sm text-bark">{student.course}</div><div className="mt-1 text-xs text-bark">Next class: {student.nextClass}</div></div><div className="flex flex-wrap items-center gap-2"><StatusPill tone={student.attendanceTone}>{student.attendanceLabel}</StatusPill><StatusPill tone={student.latestStatusTone}>{student.latestStatusLabel}</StatusPill></div></div></button>)}</div>}
+        </SectionCard>
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <SectionCard title="Student directory" subtitle="Search by student, course, guardian, or contact details.">
+          <div className="mb-5 grid gap-4 md:grid-cols-[1fr_220px]">
+            <TextInput label="Search" value={studentSearch} onChange={e => setStudentSearch(e.target.value)} placeholder="Search students, courses, emails..." />
+            <label className="block">
+              <span className="mb-2 block text-sm font-bold text-ink-soft">Filter</span>
+              <select value={studentFilter} onChange={e => setStudentFilter(e.target.value)} className="w-full rounded-xl border-2 border-parchment bg-ivory px-4 py-3 text-sm text-ink focus:border-emerald focus:outline-none focus:ring-4 focus:ring-emerald/10">
+                <option value="all">All students</option>
+                <option value="needs-attention">Need attention</option>
+                <option value="present">Present</option>
+                <option value="late">Late</option>
+                <option value="absent">Absent</option>
+                <option value="excused">Excused</option>
+                <option value="unmarked">Unmarked</option>
+              </select>
+            </label>
+          </div>
+
+          {studentsQ.isLoading ? <SectionRowsSkeleton rows={5} itemClassName="h-24" /> : filteredStudents.length === 0 ? <EmptyState icon={Users} title="No matches found" text="Try a different name, course, or attendance filter." /> : <div className="space-y-3">{filteredStudents.map((student) => <button key={student.id} onClick={() => setSelectedStudentId(student.id)} className={`w-full rounded-[24px] border p-4 text-left transition ${selectedStudent?.id === student.id ? 'border-emerald bg-emerald/6 shadow-sm' : 'border-parchment/50 bg-white hover:border-emerald/20'}`}><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><div className="font-semibold text-ink">{student.name}</div>{student.guardianName && <span className="text-xs text-bark">Guardian: {student.guardianName}</span>}</div><div className="mt-1 text-sm text-bark">{student.course}</div><div className="mt-1 text-xs text-bark">Next class: {student.nextClass}</div></div><div className="flex flex-wrap items-center gap-2"><StatusPill tone={student.attendanceTone}>{student.attendanceLabel}</StatusPill><StatusPill tone={student.latestStatusTone}>{student.latestStatusLabel}</StatusPill></div></div></button>)}</div>}
+        </SectionCard>
+
+        <SectionCard title={selectedStudent ? selectedStudent.name : 'Student details'} subtitle={selectedStudent ? 'Attendance, notes, and quick teacher actions.' : 'Select a student to start managing their profile.'}>
+          {!selectedStudent ? <EmptyState icon={Users} title="Select a student" text="Pick a student from the directory to update attendance and follow-up notes." /> : <div className="space-y-5"><div className="rounded-[24px] bg-gradient-to-r from-ivory via-white to-emerald/8 p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><div className="text-2xl font-bold text-ink">{selectedStudent.name}</div><div className="mt-1 text-sm text-bark">{selectedStudent.course}</div><div className="mt-3 flex flex-wrap gap-2"><StatusPill tone={selectedStudent.attendanceTone}>{selectedStudent.attendanceLabel}</StatusPill><StatusPill tone={selectedStudent.latestStatusTone}>{selectedStudent.latestStatusLabel}</StatusPill></div></div><div className="rounded-2xl border border-parchment/50 bg-white px-4 py-3 text-sm text-bark">Upcoming classes: <span className="font-semibold text-ink">{selectedStudent.upcomingSessions}</span></div></div></div><div className="grid gap-4 sm:grid-cols-2"><div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/70">Contact</div><div className="mt-2 text-sm text-ink">{selectedStudent.email || 'Email not provided'}</div><div className="mt-1 text-sm text-bark">{selectedStudent.phone || 'Phone not provided'}</div></div><div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/70">Guardian</div><div className="mt-2 text-sm text-ink">{selectedStudent.guardianName || 'Guardian not listed'}</div><div className="mt-1 text-sm text-bark">Next class: {selectedStudent.nextClass}</div></div></div><div><div className="mb-3 text-sm font-bold text-ink-soft">Quick attendance actions</div><div className="flex flex-wrap gap-2">{ATTENDANCE_STATUS_OPTIONS.map((option) => <button key={option.id} onClick={() => updateStudentAttendance(selectedStudent.id, option.id)} className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${selectedStudent.latestStatus === option.id ? option.tone === 'emerald' ? 'bg-emerald text-white' : option.tone === 'gold' ? 'bg-gold text-white' : option.tone === 'rose' ? 'bg-rose text-white' : 'bg-teal text-white' : 'border border-parchment bg-white text-ink-soft hover:border-emerald/20 hover:text-emerald'}`}>{option.label}</button>)}<button onClick={() => updateStudentAttendance(selectedStudent.id, 'unmarked')} className="rounded-xl border border-parchment bg-white px-4 py-2.5 text-sm font-semibold text-ink-soft hover:border-rose/20 hover:text-rose">Clear</button></div></div><TextInput label="Teacher notes" as="textarea" rows="6" value={studentNotes[selectedStudent.id] || ''} onChange={e => updateStudentNote(selectedStudent.id, e.target.value)} placeholder="Add progress notes, follow-up reminders, or behavior observations..." /><div className="flex flex-wrap gap-3"><ActionButton onClick={() => setActiveTab('messages')}>Open messages</ActionButton><button onClick={() => setActiveTab('schedule')} className="rounded-2xl border border-parchment bg-white px-5 py-3 text-sm font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">View schedule</button></div></div>}
         </SectionCard>
       </div>
     </PageHeader>

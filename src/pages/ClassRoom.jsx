@@ -57,14 +57,6 @@ function isDesktopScreenShareAvailable() {
     && window.innerWidth >= 768
 }
 
-function getGridClass(count) {
-  if (count <= 1) return 'grid-cols-1'
-  if (count === 2) return 'grid-cols-1 md:grid-cols-2'
-  if (count <= 4) return 'grid-cols-2'
-  if (count <= 6) return 'grid-cols-2 md:grid-cols-3'
-  return 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
-}
-
 export default function ClassRoom() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -81,6 +73,7 @@ export default function ClassRoom() {
   const [remoteParticipants, setRemoteParticipants] = useState([])
   const [elapsed, setElapsed] = useState(0)
   const [screenSharing, setScreenSharing] = useState(false)
+  const [focusedUid, setFocusedUid] = useState('local')
 
   const clientRef = useRef(null)
   const AgoraRef = useRef(null)
@@ -92,6 +85,8 @@ export default function ClassRoom() {
   const chatBottomRef = useRef(null)
 
   const canScreenShare = isDesktopScreenShareAvailable()
+  const isLocalFocused = focusedUid === 'local'
+  const focusedRemote = remoteParticipants.find((p) => String(p.uid) === String(focusedUid))
 
   const sessionQuery = useQuery({
     queryKey: ['classSession', id],
@@ -99,6 +94,34 @@ export default function ClassRoom() {
     enabled: !!id && !!token,
   })
   const session = sessionQuery.data?.session || {}
+
+  // Auto-focus first remote when they join
+  useEffect(() => {
+    if (!joined) return
+    if (remoteParticipants.length > 0 && isLocalFocused) {
+      setFocusedUid(remoteParticipants[0].uid)
+    }
+  }, [joined, remoteParticipants, isLocalFocused])
+
+  // If focused remote leaves, fall back
+  useEffect(() => {
+    if (!joined || isLocalFocused) return
+    const stillHere = remoteParticipants.some((p) => String(p.uid) === String(focusedUid))
+    if (!stillHere) {
+      if (remoteParticipants.length > 0) {
+        setFocusedUid(remoteParticipants[0].uid)
+      } else {
+        setFocusedUid('local')
+      }
+    }
+  }, [remoteParticipants, joined, focusedUid, isLocalFocused])
+
+  // Auto-focus local when screen sharing starts
+  useEffect(() => {
+    if (screenSharing && !isLocalFocused) {
+      setFocusedUid('local')
+    }
+  }, [screenSharing, isLocalFocused])
 
   // Timer
   useEffect(() => {
@@ -176,42 +199,44 @@ export default function ClassRoom() {
     setJoined(false)
     setScreenSharing(false)
     setRemoteParticipants([])
+    setFocusedUid('local')
   }, [])
 
   useEffect(() => () => { void cleanup() }, [cleanup])
 
-  // Play local video
+  // Play local video (routes to main-player or local-player based on focus)
   useEffect(() => {
     if (!joined) return
     const t = setTimeout(() => {
       const vt = localTracksRef.current.screenTrack || localTracksRef.current.videoTrack
-      const el = document.getElementById('local-player')
+      const elId = isLocalFocused ? 'main-player' : 'local-player'
+      const el = document.getElementById(elId)
       if (vt && el) {
         vt.play(el, { fit: 'contain', mirror: !screenSharing })
         setTimeout(() => applyVideoFit(el, 'contain'), 30)
       }
     }, 100)
     return () => clearTimeout(t)
-  }, [joined, screenSharing])
+  }, [joined, screenSharing, isLocalFocused])
 
-  // Play remote videos
+  // Play remote videos (routes to main-player or remote-player-${uid} based on focus)
   useEffect(() => {
-    const vp = remoteParticipants.filter((p) => p.hasVideo)
-    if (!joined || !vp.length) return
+    if (!joined) return
     const t = setTimeout(() => {
-      vp.forEach(({ uid }) => {
-        const ru = clientRef.current?.remoteUsers?.find((u) => String(u.uid) === String(uid))
-        if (ru?.videoTrack) {
-          const el = document.getElementById(`remote-player-${uid}`)
-          if (el) {
-            ru.videoTrack.play(el, { fit: 'contain' })
-            setTimeout(() => applyVideoFit(el, 'contain'), 30)
-          }
+      remoteParticipants.forEach((p) => {
+        if (!p.hasVideo) return
+        const ru = clientRef.current?.remoteUsers?.find((u) => String(u.uid) === String(p.uid))
+        if (!ru?.videoTrack) return
+        const elId = String(p.uid) === String(focusedUid) ? 'main-player' : `remote-player-${p.uid}`
+        const el = document.getElementById(elId)
+        if (el) {
+          ru.videoTrack.play(el, { fit: 'contain' })
+          setTimeout(() => applyVideoFit(el, 'contain'), 30)
         }
       })
     }, 100)
     return () => clearTimeout(t)
-  }, [remoteParticipants, joined])
+  }, [remoteParticipants, joined, focusedUid])
 
   const stopScreenShare = useCallback(async () => {
     const client = clientRef.current
@@ -365,7 +390,7 @@ export default function ClassRoom() {
     if (t) {
       await t.setEnabled(!cameraOn); setCameraOn((v) => !v)
       if (!cameraOn) {
-        const el = document.getElementById('local-player')
+        const el = document.getElementById(isLocalFocused ? 'main-player' : 'local-player')
         if (el) { t.play(el, { fit: 'contain', mirror: true }); setTimeout(() => applyVideoFit(el, 'contain'), 30) }
       }
     }
@@ -464,8 +489,20 @@ export default function ClassRoom() {
   }
 
   /* ── IN-CALL ── */
-  const allTiles = remoteParticipants
-  const tileCount = allTiles.length || 1
+  const filmstripParticipants = []
+  if (!isLocalFocused) {
+    filmstripParticipants.push({
+      uid: 'local',
+      isLocal: true,
+      hasVideo: cameraOn || screenSharing,
+      hasAudio: micOn,
+    })
+  }
+  remoteParticipants.forEach((p) => {
+    if (String(p.uid) !== String(focusedUid)) {
+      filmstripParticipants.push({ ...p, isLocal: false })
+    }
+  })
 
   return (
     <div className="flex flex-col h-screen bg-slate-950 text-white overflow-hidden selection:bg-blue-500/30">
@@ -491,10 +528,11 @@ export default function ClassRoom() {
         </div>
       </div>
 
-      {/* Video stage */}
-      <div className="flex-1 relative bg-slate-950">
-        <div className="absolute inset-0 flex items-center justify-center p-2 md:p-4">
-          {allTiles.length === 0 ? (
+      {/* Main content */}
+      <div className="flex-1 relative flex flex-col min-h-0">
+        {/* Main Stage */}
+        <div className="flex-1 relative flex items-center justify-center p-2 md:p-4 bg-slate-950">
+          {remoteParticipants.length === 0 && isLocalFocused ? (
             <div className="flex flex-col items-center justify-center text-slate-500">
               <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center text-4xl mb-4 border border-slate-700">
                 👤
@@ -506,46 +544,97 @@ export default function ClassRoom() {
               </div>
             </div>
           ) : (
-            <div className={`w-full h-full grid gap-2 md:gap-4 ${getGridClass(tileCount)}`}>
-              {allTiles.map((p) => (
-                <div
-                  key={p.uid}
-                  className={`relative bg-slate-800 rounded-2xl overflow-hidden shadow-xl border border-slate-700/50 ${tileCount === 1 ? 'max-w-5xl max-h-full aspect-video mx-auto' : 'w-full h-full min-h-[180px]'}`}
-                >
-                  <div id={`remote-player-${p.uid}`} className={`absolute inset-0 ${p.hasVideo ? '' : 'hidden'}`} />
-                  {!p.hasVideo && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800">
-                      <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-slate-700 flex items-center justify-center text-2xl font-bold text-slate-300 mb-3">
-                        {String(p.uid).charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-sm text-slate-300 font-medium">Participant</span>
-                      <span className="text-xs text-slate-500 mt-1">Camera off</span>
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 left-0 right-0 px-3 py-2.5 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center justify-between">
-                    <span className="text-xs text-white/90 font-medium">Participant {p.uid}</span>
-                    {!p.hasAudio && <MicOff size={14} className="text-red-400 shrink-0" />}
+            <div className="relative w-full h-full max-w-6xl max-h-full rounded-2xl overflow-hidden bg-slate-800 shadow-2xl border border-slate-700/50">
+              {/* Video element */}
+              <div id="main-player" className="w-full h-full" />
+
+              {/* Camera-off fallback for focused remote */}
+              {focusedRemote && !focusedRemote.hasVideo && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 z-10">
+                  <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-slate-700 flex items-center justify-center text-4xl font-bold text-slate-300 mb-4">
+                    {String(focusedRemote.uid).charAt(0).toUpperCase()}
                   </div>
+                  <span className="text-lg text-slate-300 font-medium">Participant {focusedRemote.uid}</span>
+                  <span className="text-sm text-slate-500 mt-1">Camera off</span>
                 </div>
-              ))}
+              )}
+
+              {/* Label overlay */}
+              <div className="absolute bottom-0 left-0 right-0 px-4 py-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center justify-between z-20">
+                <span className="text-sm font-medium text-white/90">
+                  {isLocalFocused ? (screenSharing ? 'Your Screen' : 'You') : `Participant ${focusedRemote?.uid}`}
+                </span>
+                {!isLocalFocused && focusedRemote && !focusedRemote.hasAudio && (
+                  <MicOff size={16} className="text-red-400" />
+                )}
+              </div>
+
+              {/* Tap hint (mobile) */}
+              <div className="absolute top-3 right-3 z-20 md:hidden">
+                <span className="text-[10px] bg-black/50 text-white/70 px-2 py-1 rounded-full">
+                  Tap thumbnails to swap
+                </span>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Local PiP */}
-        <div
-          ref={pipRef}
-          className="absolute bottom-20 right-2 md:bottom-24 md:right-5 w-28 h-20 sm:w-36 sm:h-24 md:w-44 md:h-32 bg-slate-800 rounded-xl overflow-hidden shadow-2xl border-2 border-slate-600/50 z-20 cursor-move select-none touch-none"
-        >
-          <div id="local-player" className="w-full h-full" />
-          <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white/90 px-1.5 py-0.5 rounded">
-            You
-          </span>
-        </div>
+        {/* Filmstrip */}
+        {filmstripParticipants.length > 0 && (
+          <div className="shrink-0 h-20 md:h-24 bg-slate-900/80 backdrop-blur-md border-t border-slate-800 px-3 py-2 flex items-center gap-2 overflow-x-auto z-20">
+            {filmstripParticipants.map((p) => (
+              <div
+                key={p.uid}
+                onClick={() => setFocusedUid(p.isLocal ? 'local' : p.uid)}
+                className="relative shrink-0 w-28 h-16 md:w-40 md:h-20 rounded-xl overflow-hidden bg-slate-800 border-2 border-transparent hover:border-blue-500 cursor-pointer transition-all select-none"
+              >
+                {p.isLocal ? (
+                  <div id="local-player" className="w-full h-full" />
+                ) : (
+                  <>
+                    <div id={`remote-player-${p.uid}`} className={`w-full h-full ${p.hasVideo ? '' : 'hidden'}`} />
+                    {!p.hasVideo && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800">
+                        <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-300">
+                          {String(p.uid).charAt(0).toUpperCase()}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Thumbnail label */}
+                <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between">
+                  <span className="text-[10px] text-white/90 font-medium">
+                    {p.isLocal ? 'You' : `P ${p.uid}`}
+                  </span>
+                  {!p.hasAudio && <MicOff size={10} className="text-red-400 shrink-0" />}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Floating PiP (mobile only, when local is not focused) */}
+        {!isLocalFocused && (
+          <div
+            ref={pipRef}
+            onClick={() => setFocusedUid('local')}
+            className="absolute bottom-24 right-2 md:bottom-28 md:right-5 w-28 h-20 sm:w-36 sm:h-24 md:w-44 md:h-32 bg-slate-800 rounded-xl overflow-hidden shadow-2xl border-2 border-slate-600/50 z-20 cursor-pointer hover:border-blue-500 transition-colors select-none touch-none"
+          >
+            <div id="local-player" className="w-full h-full" />
+            <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white/90 px-1.5 py-0.5 rounded">
+              You
+            </span>
+            <span className="absolute top-1 right-1 text-[10px] bg-blue-600/80 text-white px-1.5 py-0.5 rounded opacity-0 hover:opacity-100 transition-opacity">
+              Tap to enlarge
+            </span>
+          </div>
+        )}
 
         {/* Chat panel */}
         {chatOpen && (
-          <div className="absolute right-0 top-0 bottom-20 w-full sm:w-80 bg-slate-900/95 backdrop-blur-md border-l border-slate-800 flex flex-col z-30 animate-in slide-in-from-right duration-300">
+          <div className="absolute right-0 top-0 bottom-0 w-full sm:w-80 bg-slate-900/95 backdrop-blur-md border-l border-slate-800 flex flex-col z-30 animate-in slide-in-from-right duration-300">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
               <span className="font-semibold text-sm">Chat</span>
               <button
