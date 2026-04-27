@@ -39,6 +39,7 @@ import {
 /* ─── role tab configs ─── */
 const TEACHER_TABS = [
   { id: 'overview', label: 'Overview', icon: Sparkles },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'schedule', label: 'Schedule', icon: Calendar },
   { id: 'courses', label: 'Courses', icon: BookOpen },
   { id: 'lessons', label: 'Lessons', icon: ListVideo },
@@ -120,6 +121,13 @@ export default function DashboardLayout() {
     refetchInterval: 30000,
   })
   const unreadCount = unreadQuery.data?.count || 0
+  const teacherNotificationsQuery = useQuery({
+    queryKey: ['teacherNotificationsBell', user?.id],
+    queryFn: () => authFetch(api.teacherNotifications(user.id), token),
+    enabled: role === 'teacher' && !!user?.id && !!token,
+    refetchInterval: 30000,
+  })
+  const teacherNotificationCount = role === 'teacher' ? (teacherNotificationsQuery.data?.unreadCount || 0) : 0
 
   useEffect(() => { setMobileOpen(false) }, [activeTab])
 
@@ -165,7 +173,8 @@ export default function DashboardLayout() {
           {tabs.map((tab) => {
             const active = activeTab === tab.id
             const Icon = tab.icon
-            const showBadge = tab.id === 'messages' && unreadCount > 0
+            const showMessageBadge = tab.id === 'messages' && unreadCount > 0
+            const showTeacherBellBadge = role === 'teacher' && tab.id === 'notifications' && teacherNotificationCount > 0
             return (
               <button
                 key={tab.id}
@@ -179,9 +188,14 @@ export default function DashboardLayout() {
               >
                 <Icon size={18} className="flex-shrink-0" />
                 {!collapsed && <span>{tab.label}</span>}
-                {showBadge && (
+                {showMessageBadge && (
                   <span className={`absolute ${collapsed ? '-top-1 -right-1' : 'right-3'} flex h-5 min-w-5 items-center justify-center rounded-full bg-rose px-1 text-[10px] font-bold text-white`}>
                     {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+                {showTeacherBellBadge && (
+                  <span className={`absolute ${collapsed ? '-top-1 -right-1' : 'right-3'} flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-bold text-white`}>
+                    {teacherNotificationCount > 99 ? '99+' : teacherNotificationCount}
                   </span>
                 )}
               </button>
@@ -237,6 +251,17 @@ export default function DashboardLayout() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
+            {role === 'teacher' && (
+              <button
+                onClick={() => handleTabChange('notifications')}
+                className="relative flex items-center justify-center w-10 h-10 rounded-xl hover:bg-ivory transition text-bark hover:text-emerald"
+              >
+                <Bell size={18} />
+                {teacherNotificationCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[9px] font-bold text-white">{teacherNotificationCount > 9 ? '9+' : teacherNotificationCount}</span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => handleTabChange('messages')}
               className="relative flex items-center justify-center w-10 h-10 rounded-xl hover:bg-ivory transition text-bark hover:text-emerald"
@@ -300,7 +325,8 @@ export default function DashboardLayout() {
                 {tabs.map((tab) => {
                   const active = activeTab === tab.id
                   const Icon = tab.icon
-                  const showBadge = tab.id === 'messages' && unreadCount > 0
+                  const showMessageBadge = tab.id === 'messages' && unreadCount > 0
+                  const showTeacherBellBadge = role === 'teacher' && tab.id === 'notifications' && teacherNotificationCount > 0
                   return (
                     <button
                       key={tab.id}
@@ -313,9 +339,14 @@ export default function DashboardLayout() {
                     >
                       <Icon size={18} />
                       <span>{tab.label}</span>
-                      {showBadge && (
+                      {showMessageBadge && (
                         <span className="absolute right-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose px-1 text-[10px] font-bold text-white">
                           {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
+                      {showTeacherBellBadge && (
+                        <span className="absolute right-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-bold text-white">
+                          {teacherNotificationCount > 99 ? '99+' : teacherNotificationCount}
                         </span>
                       )}
                     </button>

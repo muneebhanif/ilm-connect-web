@@ -59,6 +59,34 @@ function formatSessionDateLabel(value) {
   })
 }
 
+function formatNotificationDateLabel(value) {
+  const parsed = new Date(value || '')
+  if (Number.isNaN(parsed.getTime())) return 'Date unavailable'
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function getNotificationTone(type = '') {
+  const normalized = String(type || '').toLowerCase()
+  if (normalized === 'class_booked') return 'emerald'
+  if (normalized === 'student_enrolled') return 'teal'
+  if (normalized === 'upcoming_class') return 'gold'
+  return 'ink'
+}
+
+function getNotificationBadgeLabel(type = '') {
+  const normalized = String(type || '').toLowerCase()
+  if (normalized === 'class_booked') return 'new booking'
+  if (normalized === 'student_enrolled') return 'new student'
+  if (normalized === 'upcoming_class') return 'upcoming'
+  return 'system'
+}
+
 function getSessionEndTimeValue(session = {}) {
   const startsAt = getSessionTimeValue(session.session_date)
   if (!startsAt) return 0
@@ -176,6 +204,7 @@ export default function TeacherDashboard() {
   const students = studentsQ.data?.students || []
   const courses = coursesQ.data?.courses || []
   const notifications = notifsQ.data?.notifications || []
+  const teacherNotificationCount = notifsQ.data?.unreadCount || 0
   const documents = docsQ.data?.documents || []
   const lessons = lessonsQ.data?.lessons || []
   const availability = normalizeAvailabilityMap(teacher.availability || {})
@@ -308,7 +337,7 @@ export default function TeacherDashboard() {
           {scheduleQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-20" /> : schedulePriorityList.length === 0 ? <EmptyState icon={Calendar} title="No upcoming classes" text="Live and upcoming sessions appear here first." /> : <div className="space-y-3">{schedulePriorityList.slice(0, 5).map(s => { const liveNow = String(s.live_status || '').toLowerCase() === 'live'; return <div key={s.id} className="rounded-[24px] border border-parchment/50 bg-gradient-to-r from-white to-ivory/70 p-4"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusPill tone={liveNow ? 'emerald' : 'gold'}>{liveNow ? 'live now' : 'up next'}</StatusPill><span className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/70">{formatSessionDateLabel(s.session_date)}</span></div><div className="mt-2 font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'}</div></div><div className="rounded-2xl border border-parchment/50 bg-white px-4 py-3 text-sm text-bark">{liveNow ? 'Students can join right now.' : 'Starts soon — ready when you are.'}</div></div></div>})}</div>}
         </SectionCard>
         <SectionCard title="Notifications">
-          {notifsQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-16" /> : notifications.length === 0 ? <EmptyState icon={Bell} title="No notifications" text="Updates will appear here." /> : <div className="space-y-3">{notifications.slice(0, 6).map(n => <div key={n.id} className="flex items-start justify-between rounded-2xl border border-parchment/50 bg-white p-4 gap-3"><div><div className="font-semibold text-ink">{n.title}</div><div className="mt-1 text-sm text-bark">{n.message}</div></div><StatusPill tone={n.type === 'system' ? 'teal' : 'gold'}>{n.type.replace('_', ' ')}</StatusPill></div>)}</div>}
+          {notifsQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-16" /> : notifications.length === 0 ? <EmptyState icon={Bell} title="No notifications" text="Updates will appear here." /> : <div className="space-y-3">{notifications.slice(0, 6).map(n => <div key={n.id} className="rounded-[24px] border border-parchment/50 bg-white p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusPill tone={getNotificationTone(n.type)}>{getNotificationBadgeLabel(n.type)}</StatusPill><span className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/60">{formatNotificationDateLabel(n.created_at)}</span></div><div className="mt-2 font-semibold text-ink">{n.title}</div><div className="mt-1 text-sm text-bark">{n.message}</div></div></div></div>)}</div>}
         </SectionCard>
       </div>
       <div className="mt-6">
@@ -341,6 +370,22 @@ export default function TeacherDashboard() {
       <div className="mt-6">
         <SectionCard title="Past sessions">
           {scheduleQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-20" /> : scheduleGroups.history.length === 0 ? <EmptyState icon={Clock3} title="No past sessions" text="Completed or missed sessions will be listed here." /> : <div className="space-y-3">{scheduleGroups.history.map(s => { const completed = String(s.status || '').toLowerCase() === 'completed'; const cancelled = String(s.status || '').toLowerCase() === 'cancelled'; return <div key={s.id} className="flex flex-col gap-3 rounded-[22px] border border-parchment/50 bg-ivory/55 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'}</div><div className="mt-1 text-xs text-bark">{formatSessionDateLabel(s.session_date)}</div></div><div className="flex flex-wrap items-center gap-2"><StatusPill tone={completed ? 'emerald' : cancelled ? 'rose' : 'gold'}>{completed ? 'completed' : cancelled ? 'cancelled' : 'ended'}</StatusPill>{!completed && !cancelled && <div className="flex items-center gap-1 text-xs font-medium text-bark"><AlertTriangle size={12} /> Needs follow-up</div>}</div></div>})}</div>}
+        </SectionCard>
+      </div>
+    </PageHeader>
+  )
+
+  // ─── NOTIFICATIONS ───
+  if (activeTab === 'notifications') return (
+    <PageHeader title="Notifications" description="Booking alerts, new student activity, and upcoming class reminders.">
+      <GridList cols="md:grid-cols-3">
+        <StatCard icon={Bell} label="Unread" value={teacherNotificationCount} tone="gold" />
+        <StatCard icon={Calendar} label="Upcoming alerts" value={notifications.filter((item) => String(item.type) === 'upcoming_class').length} tone="teal" />
+        <StatCard icon={Users} label="New bookings" value={notifications.filter((item) => String(item.type) === 'class_booked' || String(item.type) === 'student_enrolled').length} tone="emerald" />
+      </GridList>
+      <div className="mt-6">
+        <SectionCard title="Recent activity" subtitle="Simple booking and class alerts sorted by newest first.">
+          {notifsQ.isLoading ? <SectionRowsSkeleton rows={5} itemClassName="h-24" /> : notifications.length === 0 ? <EmptyState icon={Bell} title="No notifications" text="When parents book classes or students enroll, alerts will appear here." /> : <div className="space-y-4">{notifications.map((notification) => <div key={notification.id} className="rounded-[24px] border border-parchment/50 bg-white p-5"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusPill tone={getNotificationTone(notification.type)}>{getNotificationBadgeLabel(notification.type)}</StatusPill><span className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/60">{formatNotificationDateLabel(notification.created_at)}</span></div><div className="mt-2 text-lg font-semibold text-ink">{notification.title}</div><div className="mt-1 text-sm leading-relaxed text-bark">{notification.message}</div></div><div className="rounded-2xl border border-parchment/40 bg-ivory/55 px-4 py-2 text-xs font-semibold text-bark">{notification.read ? 'read' : 'new'}</div></div></div>)}</div>}
         </SectionCard>
       </div>
     </PageHeader>
