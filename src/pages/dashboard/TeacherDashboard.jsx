@@ -162,6 +162,83 @@ function PageHeader({ title, description, actions, children }) {
   )
 }
 
+const PAYOUT_METHODS_WEB = [
+  { key: 'payoneer', label: 'Payoneer' },
+  { key: 'wise',     label: 'Wise' },
+  { key: 'bank',     label: 'Bank transfer' },
+]
+
+function ManualPayoutSection({ po, userId, token, qc }) {
+  const existing = po.manualPayoutInfo || null
+  const [editing, setEditing] = useState(!existing)
+  const [form, setForm] = useState({ method: existing?.method || 'payoneer', accountEmail: existing?.accountEmail || '', accountName: existing?.accountName || '', bankName: existing?.bankName || '', iban: existing?.iban || '', swiftBic: existing?.swiftBic || '', currency: existing?.currency || 'USD', notes: existing?.notes || '' })
+
+  const save = useMutation({
+    mutationFn: () => authFetch(api.teacherManualPayoutInfo(), token, { method: 'POST', body: JSON.stringify(form) }),
+    onSuccess: () => { toast.success('Payout details saved. Admin will process your earnings.'); setEditing(false); qc.invalidateQueries({ queryKey: ['teacherPayoutStatus', userId] }) },
+    onError: (err) => toast.error(err?.message || 'Failed to save'),
+  })
+
+  return (
+    <SectionCard title="Manual payout details">
+      <div className="mb-4 flex items-start gap-2 rounded-2xl bg-gold/8 border border-gold/25 p-4">
+        <AlertTriangle size={16} className="mt-0.5 text-gold shrink-0" />
+        <div className="text-sm text-bark"><span className="font-semibold text-ink">Stripe not available in your country.</span> Provide your Payoneer, Wise, or bank details and the admin will transfer your earnings manually.</div>
+      </div>
+
+      {existing && !editing ? (
+        <div className="space-y-2 mb-4">
+          {[
+            ['Method', PAYOUT_METHODS_WEB.find(m => m.key === existing.method)?.label || existing.method],
+            existing.accountEmail ? ['Email / Account', existing.accountEmail] : null,
+            existing.accountName  ? ['Account name',   existing.accountName]  : null,
+            existing.bankName     ? ['Bank',            existing.bankName]     : null,
+            existing.iban         ? ['IBAN / Acct #',   existing.iban]        : null,
+            existing.currency     ? ['Currency',         existing.currency]   : null,
+          ].filter(Boolean).map(([label, value]) => (
+            <div key={label} className="flex items-center justify-between rounded-xl border border-parchment/60 px-4 py-2.5">
+              <span className="text-xs font-semibold text-bark uppercase tracking-wide">{label}</span>
+              <span className="text-sm font-semibold text-ink">{value}</span>
+            </div>
+          ))}
+          <button onClick={() => setEditing(true)} className="mt-2 text-sm font-semibold text-emerald hover:underline">Edit details</button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-bark mb-1">Payout method</label>
+            <div className="flex gap-2">{PAYOUT_METHODS_WEB.map(({ key, label }) => <button key={key} onClick={() => setForm(f => ({ ...f, method: key }))} className={`flex-1 rounded-xl border-2 py-2 text-sm font-semibold transition-colors ${form.method === key ? 'border-emerald bg-emerald/8 text-emerald' : 'border-parchment text-bark hover:border-emerald/40'}`}>{label}</button>)}</div>
+          </div>
+
+          {form.method !== 'bank' ? (
+            <>
+              <div><label className="block text-xs font-semibold text-bark mb-1">{form.method === 'payoneer' ? 'Payoneer email' : 'Wise email'} *</label><input type="email" value={form.accountEmail} onChange={e => setForm(f => ({ ...f, accountEmail: e.target.value }))} placeholder="your@email.com" className="w-full rounded-xl border border-parchment bg-ivory px-4 py-2.5 text-sm focus:outline-none focus:border-emerald" /></div>
+              <div><label className="block text-xs font-semibold text-bark mb-1">Account name</label><input value={form.accountName} onChange={e => setForm(f => ({ ...f, accountName: e.target.value }))} placeholder="Full name" className="w-full rounded-xl border border-parchment bg-ivory px-4 py-2.5 text-sm focus:outline-none focus:border-emerald" /></div>
+            </>
+          ) : (
+            <>
+              <div><label className="block text-xs font-semibold text-bark mb-1">Account holder name *</label><input value={form.accountName} onChange={e => setForm(f => ({ ...f, accountName: e.target.value }))} placeholder="Full legal name" className="w-full rounded-xl border border-parchment bg-ivory px-4 py-2.5 text-sm focus:outline-none focus:border-emerald" /></div>
+              <div><label className="block text-xs font-semibold text-bark mb-1">Bank name *</label><input value={form.bankName} onChange={e => setForm(f => ({ ...f, bankName: e.target.value }))} placeholder="e.g. HBL, Meezan Bank" className="w-full rounded-xl border border-parchment bg-ivory px-4 py-2.5 text-sm focus:outline-none focus:border-emerald" /></div>
+              <div><label className="block text-xs font-semibold text-bark mb-1">Account number / IBAN *</label><input value={form.iban} onChange={e => setForm(f => ({ ...f, iban: e.target.value }))} placeholder="IBAN or account number" className="w-full rounded-xl border border-parchment bg-ivory px-4 py-2.5 text-sm focus:outline-none focus:border-emerald" /></div>
+              <div><label className="block text-xs font-semibold text-bark mb-1">SWIFT / BIC code</label><input value={form.swiftBic} onChange={e => setForm(f => ({ ...f, swiftBic: e.target.value }))} placeholder="e.g. HABBPKKA" className="w-full rounded-xl border border-parchment bg-ivory px-4 py-2.5 text-sm focus:outline-none focus:border-emerald" /></div>
+            </>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-xs font-semibold text-bark mb-1">Currency</label><input value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value.toUpperCase() }))} placeholder="USD" maxLength={3} className="w-full rounded-xl border border-parchment bg-ivory px-4 py-2.5 text-sm focus:outline-none focus:border-emerald" /></div>
+          </div>
+          <div><label className="block text-xs font-semibold text-bark mb-1">Notes (optional)</label><textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any instructions for the admin" rows={3} className="w-full rounded-xl border border-parchment bg-ivory px-4 py-2.5 text-sm focus:outline-none focus:border-emerald resize-none" /></div>
+
+          <div className="flex gap-3">
+            <ActionButton onClick={() => save.mutate()} disabled={save.isPending} icon={Save}>{save.isPending ? 'Saving…' : 'Save details'}</ActionButton>
+            {existing && <button onClick={() => setEditing(false)} className="rounded-2xl border border-parchment px-5 py-3 text-sm font-semibold text-bark">Cancel</button>}
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
 export default function TeacherDashboard() {
   const { user, token } = useAuth()
   const qc = useQueryClient()
@@ -173,7 +250,8 @@ export default function TeacherDashboard() {
   const [profileForm, setProfileForm] = useState({ full_name: '', bio: '', hourly_rate: '', weekly_package_price: '', monthly_package_price: '', subjects: '', languages: '', gender: '', timezone: '', phone: '' })
   const [courseForm, setCourseForm] = useState({ id: '', title: '', description: '', subject: '', level: 'beginner', price: '', is_free: true, total_lessons: '', thumbnail_url: '' })
   const [lessonForm, setLessonForm] = useState({ title: '', description: '', content_url: '', is_preview: false })
-  const [recordingForm, setRecordingForm] = useState({ sessionId: '', title: '', description: '', visibility: 'free', durationSeconds: '' })
+  const [recordingForm, setRecordingForm] = useState({ sessionId: '', title: '', description: '', visibility: 'paid', durationSeconds: '' })
+  const [editingRecording, setEditingRecording] = useState(null)
   const [availabilityDraft, setAvailabilityDraft] = useState(() => normalizeAvailabilityMap())
 
   const scheduleQ = useQuery({ queryKey: ['teacherSchedule', user?.id], queryFn: () => authFetch(api.teacherSchedule(user.id), token), enabled: !!user?.id && !!token, refetchInterval: 10000 })
@@ -184,6 +262,7 @@ export default function TeacherDashboard() {
   const payoutQ = useQuery({ queryKey: ['teacherPayoutStatus', user?.id], queryFn: () => authFetch(api.teacherConnectStatus(), token), enabled: !!user?.id && !!token })
   const docsQ = useQuery({ queryKey: ['teacherDocuments', user?.id], queryFn: () => authFetch(api.teacherDocuments(user.id), token), enabled: !!user?.id && !!token })
   const lessonsQ = useQuery({ queryKey: ['courseLessons', selectedCourseId, user?.id], queryFn: () => authFetch(api.courseLessons(selectedCourseId, user.id), token), enabled: !!selectedCourseId && !!user?.id && !!token })
+  const recordingsQ = useQuery({ queryKey: ['teacherRecordings', user?.id], queryFn: () => authFetch(api.teacherRecordings(user.id), token), enabled: !!user?.id && !!token })
 
   const teacher = normalizeTeacherProfileResponse(profileQ.data || {}, user?.id)
   const stats = teacher.stats || {}
@@ -197,6 +276,7 @@ export default function TeacherDashboard() {
   const teacherNotificationCount = notifsQ.data?.unreadCount || 0
   const documents = docsQ.data?.documents || []
   const lessons = lessonsQ.data?.lessons || []
+  const recordings = recordingsQ.data?.recordings || []
   const availability = normalizeAvailabilityMap(teacher.availability || {})
   const verificationStatus = docsQ.data?.verification_status || teacher.verification_status || 'pending'
   const totalAvailabilitySlots = Object.values(availabilityDraft).reduce((sum, slots) => sum + slots.length, 0)
@@ -206,7 +286,7 @@ export default function TeacherDashboard() {
   const profileCompletion = Math.round((completedChecklistCount / profileChecklist.length) * 100)
   const remainingChecklist = profileChecklist.filter((item) => !item.done)
 
-  useEffect(() => { if (teacher?.full_name) setProfileForm({ full_name: teacher.full_name || '', bio: teacher.bio || '', hourly_rate: teacher.hourly_rate ? String(teacher.hourly_rate) : '', weekly_package_price: teacher.weekly_package_price ? String(teacher.weekly_package_price) : '', monthly_package_price: teacher.monthly_package_price ? String(teacher.monthly_package_price) : '', subjects: Array.isArray(teacher.subjects) ? teacher.subjects.join(', ') : '', languages: Array.isArray(teacher.languages) ? teacher.languages.join(', ') : '', gender: teacher.gender || '', timezone: teacher.timezone || '', phone: teacher.phone || '' }) }, [teacher.full_name, teacher.bio, teacher.hourly_rate, teacher.weekly_package_price, teacher.monthly_package_price, teacher.subjects, teacher.languages, teacher.gender, teacher.timezone, teacher.phone])
+  useEffect(() => { if (teacher?.full_name) setProfileForm({ full_name: teacher.full_name || '', bio: teacher.bio || '', hourly_rate: teacher.hourly_rate ? String(teacher.hourly_rate) : '', weekly_package_price: teacher.weekly_package_price ? String(teacher.weekly_package_price) : '', monthly_package_price: teacher.monthly_package_price ? String(teacher.monthly_package_price) : '', subjects: Array.isArray(teacher.subjects) ? teacher.subjects.join(', ') : '', languages: Array.isArray(teacher.languages) ? teacher.languages.join(', ') : '', gender: teacher.gender || '', timezone: teacher.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || '', phone: teacher.phone || '' }) }, [teacher.full_name, teacher.bio, teacher.hourly_rate, teacher.weekly_package_price, teacher.monthly_package_price, teacher.subjects, teacher.languages, teacher.gender, teacher.timezone, teacher.phone])
   useEffect(() => { if (!selectedCourseId && courses.length > 0) setSelectedCourseId(courses[0].id) }, [courses, selectedCourseId])
   useEffect(() => { setAvailabilityDraft(normalizeAvailabilityMap(teacher.availability || {})) }, [teacher.availability])
 
@@ -221,9 +301,12 @@ export default function TeacherDashboard() {
   const uploadLesson = useMutation({ mutationFn: async ({ file, payload }) => { const ext = getFileExtension(file.name).toLowerCase(); if (!LESSON_VIDEO_EXTENSIONS.includes(ext)) throw new Error('Only video files allowed'); if (file.size / 1048576 > 50) throw new Error('Video too large (max 50MB)'); const content = await fileToBase64(file); return authFetch(api.uploadLesson(selectedCourseId), token, { method: 'POST', body: JSON.stringify({ ...payload, content, fileExtension: ext, fileName: file.name, content_type: 'video' }) }) }, onSuccess: () => { toast.success('Lesson uploaded'); setLessonForm({ title: '', description: '', content_url: '', is_preview: false }); setLessonFile(null); qc.invalidateQueries({ queryKey: ['courseLessons', selectedCourseId, user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
   const deleteLesson = useMutation({ mutationFn: ({ lessonId }) => authFetch(api.deleteLesson(selectedCourseId, lessonId), token, { method: 'DELETE', body: JSON.stringify({ teacher_id: user.id }) }), onSuccess: () => { toast.success('Lesson deleted'); qc.invalidateQueries({ queryKey: ['courseLessons', selectedCourseId, user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
   const uploadDoc = useMutation({ mutationFn: async ({ file, documentType }) => { const doc = await fileToBase64(file); return authFetch(api.uploadTeacherDocument(user.id), token, { method: 'POST', body: JSON.stringify({ document: doc, documentType, fileExtension: getFileExtension(file.name), fileName: file.name }) }) }, onSuccess: () => { toast.success('Document uploaded'); qc.invalidateQueries({ queryKey: ['teacherDocuments', user.id] }) }, onError: (err) => toast.error(err?.message || 'Upload failed') })
+  const replaceDoc = useMutation({ mutationFn: async ({ file, documentType }) => { const doc = await fileToBase64(file); return authFetch(api.replaceTeacherDocument(user.id, documentType), token, { method: 'PATCH', body: JSON.stringify({ document: doc, documentType, fileExtension: getFileExtension(file.name), fileName: file.name }) }) }, onSuccess: () => { toast.success('Document replaced — sent for re-approval'); qc.invalidateQueries({ queryKey: ['teacherDocuments', user.id] }) }, onError: (err) => toast.error(err?.message || 'Replace failed') })
   const uploadPortfolio = useMutation({ mutationFn: async ({ file, mediaType }) => { const enc = await fileToBase64(file); return authFetch(api.uploadTeacherPortfolioMedia(user.id), token, { method: 'POST', body: JSON.stringify({ file: enc, mediaType, fileExtension: getFileExtension(file.name) }) }) }, onSuccess: () => { toast.success('Portfolio media added'); qc.invalidateQueries({ queryKey: ['teacherPublicProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Upload failed') })
   const removePortfolio = useMutation({ mutationFn: (id) => authFetch(api.deleteTeacherPortfolioMedia(user.id, id), token, { method: 'DELETE' }), onSuccess: () => { toast.success('Media removed'); qc.invalidateQueries({ queryKey: ['teacherPublicProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Remove failed') })
-  const uploadRecording = useMutation({ mutationFn: async ({ file, payload }) => { const vid = await fileToBase64(file); return authFetch(api.uploadClassRecording(user.id), token, { method: 'POST', body: JSON.stringify({ ...payload, video: vid, fileExtension: getFileExtension(file.name) }) }) }, onSuccess: () => toast.success('Recording uploaded successfully!'), onError: (err) => toast.error(err?.message || 'Recording upload failed') })
+  const uploadRecording = useMutation({ mutationFn: async ({ file, payload }) => { const vid = await fileToBase64(file); return authFetch(api.uploadClassRecording(user.id), token, { method: 'POST', body: JSON.stringify({ ...payload, video: vid, fileExtension: getFileExtension(file.name) }) }) }, onSuccess: () => { toast.success('Recording uploaded successfully!'); qc.invalidateQueries({ queryKey: ['teacherRecordings', user.id] }) }, onError: (err) => toast.error(err?.message || 'Recording upload failed') })
+  const updateRecording = useMutation({ mutationFn: ({ recordingId, payload }) => authFetch(api.updateClassRecording(user.id, recordingId), token, { method: 'PATCH', body: JSON.stringify(payload) }), onSuccess: () => { toast.success('Recording updated'); setEditingRecording(null); qc.invalidateQueries({ queryKey: ['teacherRecordings', user.id] }) }, onError: (err) => toast.error(err?.message || 'Update failed') })
+  const deleteRecording = useMutation({ mutationFn: (recordingId) => authFetch(api.deleteClassRecording(user.id, recordingId), token, { method: 'DELETE' }), onSuccess: () => { toast.success('Recording deleted'); qc.invalidateQueries({ queryKey: ['teacherRecordings', user.id] }) }, onError: (err) => toast.error(err?.message || 'Delete failed') })
   const classAction = useMutation({ mutationFn: ({ type, sessionId }) => authFetch(type === 'start' ? api.startClass(sessionId) : api.endClass(sessionId), token, { method: 'POST' }), onSuccess: (_, v) => { toast.success(v.type === 'start' ? 'Class started' : 'Class ended'); qc.invalidateQueries({ queryKey: ['teacherSchedule', user.id] }) }, onError: (err) => toast.error(err?.message || 'Action failed') })
   const connectOnboarding = useMutation({ mutationFn: () => authFetch(api.teacherConnectOnboarding(), token, { method: 'POST', body: JSON.stringify({ refreshUrl: `${window.location.origin}/dashboard/teacher?tab=payouts`, returnUrl: `${window.location.origin}/dashboard/teacher?tab=payouts` }) }), onSuccess: (d) => { if (d?.onboardingUrl) window.open(d.onboardingUrl, '_blank') }, onError: (err) => toast.error(err?.message || 'Failed to start Stripe onboarding') })
   const stripeDash = useMutation({ mutationFn: () => authFetch(api.teacherDashboardLink(), token, { method: 'POST' }), onSuccess: (d) => { if (d?.dashboardUrl) window.open(d.dashboardUrl, '_blank') } })
@@ -530,7 +613,7 @@ export default function TeacherDashboard() {
                 </label>
               ))}
             </div>
-            <div className="mt-5 space-y-2">{documents.length === 0 ? <p className="text-sm text-bark">No documents uploaded yet.</p> : documents.map((d, i) => <div key={i} className="flex items-center justify-between gap-3 rounded-2xl border border-parchment/50 bg-ivory/55 p-3"><div className="flex items-center gap-3"><FileText size={16} className="text-emerald" /><div><div className="text-sm font-semibold text-ink">{d.fileName || d.type || 'Document'}</div><div className="text-xs text-bark">{d.type || 'Document'} • {d.status || 'pending'}</div></div></div><div className="flex items-center gap-2"><StatusPill tone={getVerificationTone(d.status)}>{d.status || 'pending'}</StatusPill><a href={d.url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-emerald">View</a></div></div>)}</div>
+            <div className="mt-5 space-y-2">{documents.length === 0 ? <p className="text-sm text-bark">No documents uploaded yet.</p> : documents.map((d, i) => <div key={i} className="flex items-center justify-between gap-3 rounded-2xl border border-parchment/50 bg-ivory/55 p-3"><div className="flex items-center gap-3"><FileText size={16} className="text-emerald" /><div><div className="text-sm font-semibold text-ink">{d.fileName || d.type || 'Document'}</div><div className="text-xs text-bark">{d.type || 'Document'} • {d.status || 'pending'}</div></div></div><div className="flex items-center gap-2"><StatusPill tone={getVerificationTone(d.status)}>{d.status || 'pending'}</StatusPill><a href={d.url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-emerald">View</a><label className="cursor-pointer rounded-xl bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition"><input type="file" className="hidden" accept=".pdf,image/*" onChange={e => { const f = e.target.files?.[0]; if (f) replaceDoc.mutate({ file: f, documentType: d.type }) }} />{replaceDoc.isPending ? 'Uploading…' : 'Replace'}</label></div></div>)}</div>
           </SectionCard>
           <SectionCard title="Portfolio media">
             <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-parchment bg-ivory/60 px-4 py-5 text-sm text-bark hover:border-emerald/30 transition"><ImagePlus size={18} className="text-emerald" /><input type="file" accept="image/*,video/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadPortfolio.mutate({ file: f, mediaType: f.type.startsWith('video/') ? 'video' : 'image' }) }} /><span>{uploadPortfolio.isPending ? 'Uploading...' : 'Add image or video'}</span></label>
@@ -539,15 +622,54 @@ export default function TeacherDashboard() {
         </div>
         <SectionCard title="Upload recording">
           <div className="space-y-4">
-            <div><label className="mb-2 block text-sm font-semibold text-ink-soft">Class</label><select value={recordingForm.sessionId} onChange={e => { const s = completedClasses.find(c => c.id === e.target.value); setRecordingForm(p => ({ ...p, sessionId: e.target.value, title: s ? `${s.courses?.title || 'Class'} – ${new Date(s.session_date).toLocaleDateString()}` : p.title })) }} className="w-full rounded-2xl border border-parchment/60 bg-ivory px-4 py-3 text-sm text-ink"><option value="">Select a completed class…</option>{completedClasses.map(s => <option key={s.id} value={s.id}>{s.courses?.title || 'Session'} — {s.students?.name || 'Student'} — {new Date(s.session_date).toLocaleDateString()}</option>)}</select>{completedClasses.length === 0 && <p className="mt-1 text-xs text-bark">No completed classes yet. Recordings can only be uploaded for finished classes.</p>}</div>
+            <div><label className="mb-2 block text-sm font-semibold text-ink-soft">Class</label><select value={recordingForm.sessionId} onChange={e => { const s = completedClasses.find(c => c.id === e.target.value); setRecordingForm(p => ({ ...p, sessionId: e.target.value, title: s ? `${s.courses?.title || 'Class'} – ${new Date(s.session_date).toLocaleDateString()}` : p.title })) }} className="w-full rounded-2xl border border-parchment/60 bg-ivory px-4 py-3 text-sm text-ink"><option value="">Select a completed class…</option>{completedClasses.map(s => <option key={s.id} value={s.id}>{s.courses?.title || 'Session'} — {s.students?.name || 'Student'} — {new Date(s.session_date).toLocaleDateString()}</option>)}</select>{completedClasses.length === 0 && <p className="mt-1 text-xs text-bark">No completed classes yet.</p>}</div>
             <TextInput label="Title" value={recordingForm.title} onChange={e => setRecordingForm(p => ({ ...p, title: e.target.value }))} />
             <TextInput label="Description" as="textarea" rows="2" value={recordingForm.description} onChange={e => setRecordingForm(p => ({ ...p, description: e.target.value }))} />
             <div className="grid gap-4 sm:grid-cols-2">
-              <div><label className="mb-2 block text-sm font-semibold text-ink-soft">Visibility</label><select value={recordingForm.visibility} onChange={e => setRecordingForm(p => ({ ...p, visibility: e.target.value }))} className="w-full rounded-2xl border border-parchment/60 bg-ivory px-4 py-3 text-sm text-ink"><option value="free">Free</option><option value="paid">Paid</option></select></div>
+              {!recordingForm.sessionId && (
+                <div><label className="mb-2 block text-sm font-semibold text-ink-soft">Visibility</label><select value={recordingForm.visibility} onChange={e => setRecordingForm(p => ({ ...p, visibility: e.target.value }))} className="w-full rounded-2xl border border-parchment/60 bg-ivory px-4 py-3 text-sm text-ink"><option value="paid">Paid</option><option value="free">Free</option></select></div>
+              )}
               <TextInput label="Duration (sec)" type="number" value={recordingForm.durationSeconds} onChange={e => setRecordingForm(p => ({ ...p, durationSeconds: e.target.value }))} />
             </div>
-            <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-parchment bg-ivory/60 px-4 py-5 text-sm text-bark hover:border-emerald/30 transition"><CirclePlay size={18} className="text-emerald" /><input type="file" accept="video/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (!recordingForm.sessionId) { toast.error('Please select a class first'); return }; if (f) uploadRecording.mutate({ file: f, payload: { sessionId: recordingForm.sessionId || null, title: recordingForm.title, description: recordingForm.description, visibility: recordingForm.visibility, durationSeconds: Number(recordingForm.durationSeconds || 0) } }) }} /><span>{uploadRecording.isPending ? 'Uploading...' : 'Select recording video'}</span></label>
+            <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-parchment bg-ivory/60 px-4 py-5 text-sm text-bark hover:border-emerald/30 transition"><CirclePlay size={18} className="text-emerald" /><input type="file" accept="video/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (!recordingForm.title.trim()) { toast.error('Please enter a title first'); return }; if (f) uploadRecording.mutate({ file: f, payload: { sessionId: recordingForm.sessionId || null, title: recordingForm.title, description: recordingForm.description, visibility: recordingForm.sessionId ? 'paid' : recordingForm.visibility, durationSeconds: Number(recordingForm.durationSeconds || 0), grantToBookedStudents: !!recordingForm.sessionId, fulfillBooking: !!recordingForm.sessionId } }) }} /><span>{uploadRecording.isPending ? 'Uploading...' : 'Select recording video'}</span></label>
           </div>
+          {recordings.length > 0 && (
+            <div className="mt-8">
+              <div className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-emerald">Uploaded recordings</div>
+              <div className="space-y-3">
+                {recordings.map(rec => (
+                  <div key={rec.id} className="rounded-[24px] border border-parchment/50 bg-ivory/55 p-4">
+                    {editingRecording?.id === rec.id ? (
+                      <div className="space-y-3">
+                        <input className="w-full rounded-2xl border border-parchment/60 bg-white px-4 py-3 text-sm text-ink" value={editingRecording.title} onChange={e => setEditingRecording(p => ({ ...p, title: e.target.value }))} placeholder="Title" />
+                        <textarea className="w-full rounded-2xl border border-parchment/60 bg-white px-4 py-3 text-sm text-ink" rows={2} value={editingRecording.description} onChange={e => setEditingRecording(p => ({ ...p, description: e.target.value }))} placeholder="Description" />
+                        <select className="w-full rounded-2xl border border-parchment/60 bg-white px-4 py-3 text-sm text-ink" value={editingRecording.visibility} onChange={e => setEditingRecording(p => ({ ...p, visibility: e.target.value }))}><option value="paid">Paid</option><option value="free">Free</option></select>
+                        <div className="flex gap-3">
+                          <ActionButton onClick={() => updateRecording.mutate({ recordingId: rec.id, payload: { title: editingRecording.title, description: editingRecording.description, visibility: editingRecording.visibility } })} icon={Save} disabled={updateRecording.isPending}>{updateRecording.isPending ? 'Saving...' : 'Save'}</ActionButton>
+                          <button onClick={() => setEditingRecording(null)} className="rounded-2xl border border-parchment px-5 py-2.5 text-sm font-semibold text-ink-soft">Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-ink">{rec.title}</div>
+                          {rec.class_sessions && <div className="mt-1 text-xs text-bark">{rec.class_sessions.courses?.title || 'Linked session'}</div>}
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <StatusPill tone={rec.visibility === 'free' ? 'emerald' : 'gold'}>{rec.visibility}</StatusPill>
+                            <StatusPill tone="teal">{rec.status}</StatusPill>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => setEditingRecording({ id: rec.id, title: rec.title, description: rec.description || '', visibility: rec.visibility })} className="flex h-9 w-9 items-center justify-center rounded-2xl border border-parchment bg-white text-emerald hover:border-emerald/30"><Save size={15} /></button>
+                          <button onClick={() => { if (window.confirm(`Delete "${rec.title}"? This cannot be undone.`)) deleteRecording.mutate(rec.id) }} disabled={deleteRecording.isPending} className="flex h-9 w-9 items-center justify-center rounded-2xl border border-rose/20 bg-rose/5 text-rose disabled:opacity-50"><Trash2 size={15} /></button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </SectionCard>
       </div>
     </PageHeader>
@@ -556,20 +678,37 @@ export default function TeacherDashboard() {
   // ─── PAYOUTS ───
   if (activeTab === 'payouts') {
     const po = payoutQ.data || {}
+    const STRIPE_SUPPORTED = new Set(['AU','AT','BE','BG','CA','HR','CY','CZ','DK','EE','FI','FR','DE','GI','GR','HK','HU','IE','IT','JP','LV','LI','LT','LU','MT','MX','NL','NZ','NO','PL','PT','RO','SG','SK','SI','ES','SE','CH','TH','AE','GB','US'])
+    const profileCountry = (po.profileCountry || '').toUpperCase()
+    const stripeSupported = !profileCountry || STRIPE_SUPPORTED.has(profileCountry)
     return (
-      <PageHeader title="Payouts" description="Manage your Stripe payout account.">
+      <PageHeader title="Payouts" description="Manage how you receive your earnings.">
         <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
-          <SectionCard title="Stripe Connect">
-            <div className="mb-6 flex items-center justify-between"><span className="font-semibold text-ink">Status</span><StatusPill tone={po.payoutsEnabled ? 'emerald' : po.connected ? 'gold' : 'ink'}>{po.payoutsEnabled ? 'Ready' : po.connected ? 'Setup needed' : 'Not connected'}</StatusPill></div>
-            <div className="space-y-3 mb-6">{[{ k: 'connected', l: 'Account created' }, { k: 'detailsSubmitted', l: 'Details submitted' }, { k: 'chargesEnabled', l: 'Charges enabled' }, { k: 'payoutsEnabled', l: 'Payouts enabled' }].map(i => <div key={i.k} className="flex items-center gap-3">{po[i.k] ? <CheckCircle2 size={18} className="text-emerald" /> : <Circle size={18} className="text-bark/40" />}<span className="text-sm font-medium text-ink">{i.l}</span></div>)}</div>
-            {po.requirementsDue?.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-2xl bg-gold/8 p-4"><AlertTriangle size={16} className="mt-0.5 text-gold" /><div><div className="text-sm font-semibold text-ink">Action required</div><div className="text-xs text-bark">{po.requirementsDue.join(', ')}</div></div></div>}
-            <div className="flex flex-wrap gap-3"><ActionButton onClick={() => connectOnboarding.mutate()} disabled={connectOnboarding.isPending} icon={ExternalLink}>{po.connected ? 'Continue setup' : 'Connect Stripe'}</ActionButton>{po.connected && <button onClick={() => stripeDash.mutate()} disabled={stripeDash.isPending} className="rounded-2xl border border-parchment px-5 py-3 text-sm font-semibold text-ink-soft hover:border-emerald/30">Stripe Dashboard</button>}</div>
-          </SectionCard>
+          {stripeSupported ? (
+            <SectionCard title="Stripe Connect">
+              <div className="mb-6 flex items-center justify-between"><span className="font-semibold text-ink">Status</span><StatusPill tone={po.payoutsEnabled ? 'emerald' : po.connected ? 'gold' : 'ink'}>{po.payoutsEnabled ? 'Ready' : po.connected ? 'Setup needed' : 'Not connected'}</StatusPill></div>
+              <div className="space-y-3 mb-6">{[{ k: 'connected', l: 'Account created' }, { k: 'detailsSubmitted', l: 'Details submitted' }, { k: 'chargesEnabled', l: 'Charges enabled' }, { k: 'payoutsEnabled', l: 'Payouts enabled' }].map(i => <div key={i.k} className="flex items-center gap-3">{po[i.k] ? <CheckCircle2 size={18} className="text-emerald" /> : <Circle size={18} className="text-bark/40" />}<span className="text-sm font-medium text-ink">{i.l}</span></div>)}</div>
+              {po.requirementsDue?.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-2xl bg-gold/8 p-4"><AlertTriangle size={16} className="mt-0.5 text-gold" /><div><div className="text-sm font-semibold text-ink">Action required</div><div className="text-xs text-bark">{po.requirementsDue.join(', ')}</div></div></div>}
+              <div className="flex flex-wrap gap-3"><ActionButton onClick={() => connectOnboarding.mutate()} disabled={connectOnboarding.isPending} icon={ExternalLink}>{po.connected ? 'Continue setup' : 'Connect Stripe'}</ActionButton>{po.connected && <button onClick={() => stripeDash.mutate()} disabled={stripeDash.isPending} className="rounded-2xl border border-parchment px-5 py-3 text-sm font-semibold text-ink-soft hover:border-emerald/30">Stripe Dashboard</button>}</div>
+            </SectionCard>
+          ) : (
+            <ManualPayoutSection po={po} userId={user?.id} token={token} qc={qc} />
+          )}
           <SectionCard title="How it works">
             <div className="space-y-3 text-sm text-bark">
-              <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><span className="font-semibold text-ink">Bookings</span> use your hourly/package rates.</div>
-              <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><span className="font-semibold text-ink">Platform fee</span> is auto-deducted.</div>
-              <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><span className="font-semibold text-ink">Payouts</span> go to your bank on schedule.</div>
+              {stripeSupported ? (
+                <>
+                  <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><span className="font-semibold text-ink">Bookings</span> use your hourly/package rates.</div>
+                  <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><span className="font-semibold text-ink">Platform fee</span> is auto-deducted. Your net is stored in Stripe.</div>
+                  <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><span className="font-semibold text-ink">Payouts</span> go to your bank on your Stripe schedule.</div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><span className="font-semibold text-ink">Bookings</span> use your hourly/package rates. A platform fee is deducted.</div>
+                  <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><span className="font-semibold text-ink">Manual transfers</span> — the admin reviews your balance and sends earnings via your chosen method (typically weekly).</div>
+                  <div className="rounded-2xl border border-parchment/50 bg-ivory/55 p-4"><span className="font-semibold text-ink">Email notification</span> when a transfer is sent to your Payoneer, Wise, or bank account.</div>
+                </>
+              )}
             </div>
           </SectionCard>
         </div>
