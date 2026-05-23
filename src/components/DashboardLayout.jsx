@@ -34,6 +34,8 @@ import {
   BarChart3,
   UserCheck,
   Flag,
+  CreditCard,
+  Video,
 } from 'lucide-react'
 
 /* ─── role tab configs ─── */
@@ -70,12 +72,15 @@ const STUDENT_TABS = [
 ]
 
 const ADMIN_TABS = [
-  { id: 'overview', label: 'Overview', icon: BarChart3 },
-  { id: 'users', label: 'Users', icon: Users },
-  { id: 'teachers', label: 'Teachers', icon: UserCheck },
-  { id: 'courses', label: 'Courses', icon: BookOpen },
-  { id: 'reviews', label: 'Reviews', icon: Flag },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'overview',    label: 'Overview',   icon: BarChart3   },
+  { id: 'users',       label: 'Users',      icon: Users       },
+  { id: 'teachers',    label: 'Teachers',   icon: UserCheck   },
+  { id: 'courses',     label: 'Courses',    icon: BookOpen    },
+  { id: 'bookings',    label: 'Bookings',   icon: Calendar    },
+  { id: 'payments',    label: 'Payments',   icon: CreditCard  },
+  { id: 'recordings',  label: 'Recordings', icon: Video       },
+  { id: 'reviews',     label: 'Reviews',    icon: Flag        },
+  { id: 'settings',    label: 'Settings',   icon: Settings    },
 ]
 
 function getTabsForRole(role) {

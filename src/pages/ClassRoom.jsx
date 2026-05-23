@@ -88,6 +88,9 @@ export default function ClassRoom() {
   const isLocalFocused = focusedUid === 'local'
   const focusedRemote = remoteParticipants.find((p) => String(p.uid) === String(focusedUid))
 
+  // ←←← NEW: Auto detect 1:1 vs Group mode (FaceTime vs Zoom)
+  const isOneToOne = remoteParticipants.length <= 1
+
   const sessionQuery = useQuery({
     queryKey: ['classSession', id],
     queryFn: () => authFetch(api.classSession(id), token),
@@ -141,7 +144,7 @@ export default function ClassRoom() {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
-  // Draggable PiP
+  // Draggable PiP (FaceTime style)
   useEffect(() => {
     const pip = pipRef.current
     if (!pip || !joined) return
@@ -505,250 +508,226 @@ export default function ClassRoom() {
   })
 
   return (
-    <div className="flex flex-col h-screen bg-slate-950 text-white overflow-hidden selection:bg-blue-500/30">
-      {/* Top bar */}
-      <div className="shrink-0 h-14 md:h-16 flex items-center justify-between px-4 md:px-6 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 z-30">
+    <div className="flex flex-col h-screen bg-slate-950 text-white overflow-hidden selection:bg-emerald-500/30">
+      {/* Top Bar - Clean & Modern (same for 1:1 and Group) */}
+      <div className="shrink-0 h-14 bg-black/95 backdrop-blur-lg flex items-center justify-between px-4 border-b border-white/10 z-30">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/20">
-            <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-            <span className="text-red-400 text-[11px] font-bold tracking-wider">LIVE</span>
-          </div>
-          <span className="font-mono text-sm text-slate-300 tabular-nums">{fmt(elapsed)}</span>
+          <span className="text-emerald-400 text-xl font-bold tracking-tight">ILM Connect</span>
+          <div className="font-mono text-sm text-slate-300 tabular-nums">{fmt(elapsed)}</div>
         </div>
 
-        <span className="hidden sm:block font-medium text-sm text-slate-200 truncate max-w-[200px] md:max-w-md">
-          {session?.subject || 'Live Class'}
-        </span>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs text-slate-300 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
-            <Users size={13} />
-            <span className="font-medium">{1 + remoteParticipants.length}</span>
-          </div>
+        <div className="flex items-center gap-2 bg-slate-900 px-3 py-1 rounded-3xl text-xs border border-slate-700">
+          <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+          <span className="font-medium">{1 + remoteParticipants.length}</span>
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="flex-1 relative flex flex-col min-h-0">
-        {/* Main Stage */}
-        <div className="flex-1 relative flex items-center justify-center p-2 md:p-4 bg-slate-950">
-          {remoteParticipants.length === 0 && isLocalFocused ? (
-            <div className="flex flex-col items-center justify-center text-slate-500">
-              <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center text-4xl mb-4 border border-slate-700">
-                👤
+      {/* Main Video Area */}
+      <div className="flex-1 relative flex flex-col min-h-0 bg-slate-950">
+        
+        {/* ==================== 1:1 FACETIME MODE ==================== */}
+        {isOneToOne && (
+          <div className="flex-1 relative h-full bg-black">
+            {/* Large Remote Video (FaceTime style) */}
+            <div id="main-player" className="absolute inset-0 w-full h-full" />
+
+            {/* Camera off fallback for remote */}
+            {focusedRemote && !focusedRemote.hasVideo && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900">
+                <div className="text-8xl mb-6">👤</div>
+                <p className="text-2xl font-medium">Participant</p>
+                <p className="text-slate-400 mt-1">Camera is off</p>
               </div>
-              <p className="text-lg font-medium text-slate-400 mb-1">Waiting for participant…</p>
-              <div className="flex items-center gap-2 text-sm text-emerald-400 mt-2">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full" />
-                <span>Connected</span>
+            )}
+
+            {/* Draggable Self PiP (FaceTime style) */}
+            {!isLocalFocused && (
+              <div
+                ref={pipRef}
+                onClick={() => setFocusedUid('local')}
+                className="absolute bottom-6 right-6 w-28 h-40 sm:w-32 sm:h-44 md:w-40 md:h-52 bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-400 cursor-pointer select-none z-20"
+              >
+                <div id="local-player" className="w-full h-full" />
+                <div className="absolute bottom-2 left-2 bg-black/70 text-xs px-3 py-px rounded-xl">You</div>
               </div>
+            )}
+
+            {/* Live indicator */}
+            <div className="absolute top-6 left-6 bg-red-500 text-white text-xs px-4 py-1 rounded-3xl flex items-center gap-1 font-medium z-30">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              LIVE
             </div>
-          ) : (
-            <div className="relative w-full h-full max-w-6xl max-h-full rounded-2xl overflow-hidden bg-slate-800 shadow-2xl border border-slate-700/50">
-              {/* Video element */}
+          </div>
+        )}
+
+        {/* ==================== GROUP / ZOOM MODE ==================== */}
+        {!isOneToOne && (
+          <div className="flex-1 flex flex-col p-3">
+            {/* Main Speaker View */}
+            <div className="flex-1 relative rounded-3xl overflow-hidden bg-slate-900 border border-slate-700 shadow-2xl">
               <div id="main-player" className="w-full h-full" />
 
-              {/* Camera-off fallback for focused remote */}
+              {/* Camera off fallback for focused remote */}
               {focusedRemote && !focusedRemote.hasVideo && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 z-10">
-                  <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-slate-700 flex items-center justify-center text-4xl font-bold text-slate-300 mb-4">
-                    {String(focusedRemote.uid).charAt(0).toUpperCase()}
-                  </div>
-                  <span className="text-lg text-slate-300 font-medium">Participant {focusedRemote.uid}</span>
-                  <span className="text-sm text-slate-500 mt-1">Camera off</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900">
+                  <div className="text-7xl mb-6">👤</div>
+                  <p className="text-xl font-medium">Speaker</p>
+                  <p className="text-slate-400">Camera is off</p>
                 </div>
               )}
 
-              {/* Label overlay */}
-              <div className="absolute bottom-0 left-0 right-0 px-4 py-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center justify-between z-20">
-                <span className="text-sm font-medium text-white/90">
+              {/* Speaker label */}
+              <div className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between z-20">
+                <span className="text-base font-medium">
                   {isLocalFocused ? (screenSharing ? 'Your Screen' : 'You') : `Participant ${focusedRemote?.uid}`}
                 </span>
                 {!isLocalFocused && focusedRemote && !focusedRemote.hasAudio && (
-                  <MicOff size={16} className="text-red-400" />
+                  <MicOff size={18} className="text-red-400" />
                 )}
               </div>
-
-              {/* Tap hint (mobile) */}
-              <div className="absolute top-3 right-3 z-20 md:hidden">
-                <span className="text-[10px] bg-black/50 text-white/70 px-2 py-1 rounded-full">
-                  Tap thumbnails to swap
-                </span>
-              </div>
             </div>
-          )}
-        </div>
 
-        {/* Filmstrip */}
-        {filmstripParticipants.length > 0 && (
-          <div className="shrink-0 h-20 md:h-24 bg-slate-900/80 backdrop-blur-md border-t border-slate-800 px-3 py-2 flex items-center gap-2 overflow-x-auto z-20">
-            {filmstripParticipants.map((p) => (
-              <div
-                key={p.uid}
-                onClick={() => setFocusedUid(p.isLocal ? 'local' : p.uid)}
-                className="relative shrink-0 w-28 h-16 md:w-40 md:h-20 rounded-xl overflow-hidden bg-slate-800 border-2 border-transparent hover:border-blue-500 cursor-pointer transition-all select-none"
-              >
-                {p.isLocal ? (
-                  <div id="local-player" className="w-full h-full" />
-                ) : (
-                  <>
-                    <div id={`remote-player-${p.uid}`} className={`w-full h-full ${p.hasVideo ? '' : 'hidden'}`} />
-                    {!p.hasVideo && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800">
-                        <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-300">
-                          {String(p.uid).charAt(0).toUpperCase()}
-                        </div>
-                      </div>
+            {/* Filmstrip / Gallery Thumbnails */}
+            {filmstripParticipants.length > 0 && (
+              <div className="mt-4 flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory">
+                {filmstripParticipants.map((p) => (
+                  <div
+                    key={p.uid}
+                    onClick={() => setFocusedUid(p.isLocal ? 'local' : p.uid)}
+                    className="relative shrink-0 w-24 h-16 md:w-36 md:h-24 rounded-2xl overflow-hidden bg-slate-800 border-2 border-transparent hover:border-emerald-400 cursor-pointer transition-all snap-center"
+                  >
+                    {p.isLocal ? (
+                      <div id="local-player" className="w-full h-full" />
+                    ) : (
+                      <>
+                        <div id={`remote-player-${p.uid}`} className={`w-full h-full ${p.hasVideo ? '' : 'hidden'}`} />
+                        {!p.hasVideo && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-3xl">👤</div>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
-
-                {/* Thumbnail label */}
-                <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between">
-                  <span className="text-[10px] text-white/90 font-medium">
-                    {p.isLocal ? 'You' : `P ${p.uid}`}
-                  </span>
-                  {!p.hasAudio && <MicOff size={10} className="text-red-400 shrink-0" />}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Floating PiP (mobile only, when local is not focused) */}
-        {!isLocalFocused && (
-          <div
-            ref={pipRef}
-            onClick={() => setFocusedUid('local')}
-            className="absolute bottom-24 right-2 md:bottom-28 md:right-5 w-28 h-20 sm:w-36 sm:h-24 md:w-44 md:h-32 bg-slate-800 rounded-xl overflow-hidden shadow-2xl border-2 border-slate-600/50 z-20 cursor-pointer hover:border-blue-500 transition-colors select-none touch-none"
-          >
-            <div id="local-player" className="w-full h-full" />
-            <span className="absolute bottom-1.5 left-1.5 text-[10px] font-medium bg-black/60 text-white/90 px-1.5 py-0.5 rounded">
-              You
-            </span>
-            <span className="absolute top-1 right-1 text-[10px] bg-blue-600/80 text-white px-1.5 py-0.5 rounded opacity-0 hover:opacity-100 transition-opacity">
-              Tap to enlarge
-            </span>
-          </div>
-        )}
-
-        {/* Chat panel */}
-        {chatOpen && (
-          <div className="absolute right-0 top-0 bottom-0 w-full sm:w-80 bg-slate-900/95 backdrop-blur-md border-l border-slate-800 flex flex-col z-30 animate-in slide-in-from-right duration-300">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
-              <span className="font-semibold text-sm">Chat</span>
-              <button
-                onClick={() => setChatOpen(false)}
-                className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
-              >
-                <X size={16} className="text-slate-400" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {chatMessages.length === 0 && (
-                <p className="text-center text-slate-500 text-sm py-8">No messages yet</p>
-              )}
-              {chatMessages.map((m) => (
-                <div key={m.id} className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
-                  {!m.mine && (
-                    <span className="text-[11px] text-slate-400 mb-1 ml-1">{m.senderName}</span>
-                  )}
-                  <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm ${m.mine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-slate-800 text-slate-200 rounded-bl-md border border-slate-700'}`}>
-                    <p className="leading-relaxed">{m.text}</p>
-                    <p className={`text-[10px] mt-1 ${m.mine ? 'text-blue-200' : 'text-slate-500'}`}>
-                      {new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                    <div className="absolute bottom-1 left-1 bg-black/70 text-[10px] px-2 py-px rounded-lg">
+                      {p.isLocal ? 'You' : `P${p.uid}`}
+                    </div>
+                    {!p.hasAudio && <MicOff size={12} className="absolute top-2 right-2 text-red-400" />}
                   </div>
-                </div>
-              ))}
-              <div ref={chatBottomRef} />
-            </div>
-            <div className="p-3 border-t border-slate-800 shrink-0">
-              <div className="flex items-center gap-2">
-                <input
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-                  placeholder="Type a message…"
-                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
-                />
-                <button
-                  onClick={sendChat}
-                  className="p-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors shadow-lg shadow-blue-600/20"
-                >
-                  <Send size={16} />
-                </button>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Bottom controls */}
-      <div className="shrink-0 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 px-4 py-2.5 md:py-3 z-40">
-        <div className="flex items-center justify-center gap-2 md:gap-4">
-          <div className="flex items-center gap-2">
+      {/* Bottom Controls - Modern & Responsive */}
+      <div className="shrink-0 bg-black/90 backdrop-blur-lg border-t border-white/10 px-4 py-4 z-40">
+        <div className="flex items-center justify-center gap-6 text-3xl">
+          {/* Mute */}
+          <button
+            onClick={toggleMic}
+            className={`flex flex-col items-center group ${micOn ? 'text-white' : 'text-red-400'}`}
+          >
+            <div className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all active:scale-95">
+              {micOn ? <Mic size={28} /> : <MicOff size={28} />}
+            </div>
+            <span className="text-xs mt-1 text-slate-400">Mute</span>
+          </button>
+
+          {/* Video */}
+          <button
+            onClick={toggleCamera}
+            disabled={screenSharing}
+            className={`flex flex-col items-center group ${cameraOn ? 'text-white' : 'text-red-400'}`}
+          >
+            <div className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all active:scale-95">
+              {cameraOn ? <Video size={28} /> : <VideoOff size={28} />}
+            </div>
+            <span className="text-xs mt-1 text-slate-400">Video</span>
+          </button>
+
+          {/* Screen Share */}
+          {canScreenShare && (
             <button
-              onClick={toggleMic}
-              className={`group relative p-3 md:p-3.5 rounded-full transition-all active:scale-95 ${micOn ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20'}`}
+              onClick={toggleScreenShare}
+              className="flex flex-col items-center group text-white"
             >
-              {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-              <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                {micOn ? 'Mute' : 'Unmute'}
-              </span>
+              <div className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all active:scale-95">
+                {screenSharing ? <ScreenShareOff size={28} /> : <ScreenShare size={28} />}
+              </div>
+              <span className="text-xs mt-1 text-slate-400">Share</span>
             </button>
+          )}
 
-            <button
-              onClick={toggleCamera}
-              disabled={screenSharing}
-              className={`group relative p-3 md:p-3.5 rounded-full transition-all active:scale-95 ${screenSharing ? 'opacity-50 cursor-not-allowed bg-slate-800 text-slate-500' : cameraOn ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20'}`}
-            >
-              {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
-              <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                {cameraOn ? 'Stop Video' : 'Start Video'}
-              </span>
-            </button>
-          </div>
+          {/* Chat */}
+          <button
+            onClick={() => setChatOpen((v) => !v)}
+            className="flex flex-col items-center group text-white"
+          >
+            <div className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all active:scale-95">
+              <MessageCircle size={28} />
+            </div>
+            <span className="text-xs mt-1 text-slate-400">Chat</span>
+          </button>
 
-          <div className="w-px h-8 bg-slate-700 mx-1" />
-
-          <div className="flex items-center gap-2">
-            {canScreenShare && (
-              <button
-                onClick={toggleScreenShare}
-                className={`group relative p-3 md:p-3.5 rounded-full transition-all active:scale-95 ${screenSharing ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
-              >
-                {screenSharing ? <ScreenShareOff size={20} /> : <ScreenShare size={20} />}
-                <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                  {screenSharing ? 'Stop Sharing' : 'Share Screen'}
-                </span>
-              </button>
-            )}
-
-            <button
-              onClick={() => setChatOpen((v) => !v)}
-              className={`group relative p-3 md:p-3.5 rounded-full transition-all active:scale-95 ${chatOpen ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
-            >
-              <MessageCircle size={20} />
-              <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                Chat
-              </span>
-            </button>
-          </div>
-
-          <div className="w-px h-8 bg-slate-700 mx-1" />
-
+          {/* Leave / End */}
           <button
             onClick={endOrLeave}
-            className="group relative p-3 md:p-3.5 rounded-full bg-red-600 hover:bg-red-500 text-white transition-all active:scale-95 shadow-lg shadow-red-600/20"
+            className="bg-red-600 hover:bg-red-700 w-14 h-14 rounded-3xl flex items-center justify-center text-3xl active:scale-95 transition-all"
           >
-            {user?.role === 'teacher' ? <Phone size={20} className="rotate-[135deg]" /> : <PhoneOff size={20} />}
-            <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[11px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-              {user?.role === 'teacher' ? 'End Class' : 'Leave'}
-            </span>
+            {user?.role === 'teacher' ? <Phone size={28} className="rotate-[135deg]" /> : <PhoneOff size={28} />}
           </button>
         </div>
       </div>
+
+      {/* Chat Panel (unchanged) */}
+      {chatOpen && (
+        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-80 bg-slate-900/95 backdrop-blur-md border-l border-slate-800 flex flex-col z-30">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
+            <span className="font-semibold text-sm">Chat</span>
+            <button
+              onClick={() => setChatOpen(false)}
+              className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <X size={16} className="text-slate-400" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {chatMessages.length === 0 && (
+              <p className="text-center text-slate-500 text-sm py-8">No messages yet</p>
+            )}
+            {chatMessages.map((m) => (
+              <div key={m.id} className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
+                {!m.mine && (
+                  <span className="text-[11px] text-slate-400 mb-1 ml-1">{m.senderName}</span>
+                )}
+                <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm ${m.mine ? 'bg-emerald-600 text-white rounded-br-md' : 'bg-slate-800 text-slate-200 rounded-bl-md border border-slate-700'}`}>
+                  <p className="leading-relaxed">{m.text}</p>
+                  <p className={`text-[10px] mt-1 ${m.mine ? 'text-emerald-200' : 'text-slate-500'}`}>
+                    {new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+            ))}
+            <div ref={chatBottomRef} />
+          </div>
+          <div className="p-3 border-t border-slate-800 shrink-0">
+            <div className="flex items-center gap-2">
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+                placeholder="Type a message…"
+                className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all"
+              />
+              <button
+                onClick={sendChat}
+                className="p-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-colors shadow-lg shadow-emerald-600/20"
+              >
+                <Send size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
