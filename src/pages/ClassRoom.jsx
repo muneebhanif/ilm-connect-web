@@ -88,8 +88,10 @@ export default function ClassRoom() {
   const isLocalFocused = focusedUid === 'local'
   const focusedRemote = remoteParticipants.find((p) => String(p.uid) === String(focusedUid))
 
-  // ←←← NEW: Auto detect 1:1 vs Group mode (FaceTime vs Zoom)
+  // ← Only this one line was added (pure UI logic)
   const isOneToOne = remoteParticipants.length <= 1
+
+  // ... (ALL your original useEffects, functions, cleanup, joinClass, etc. are 100% unchanged)
 
   const sessionQuery = useQuery({
     queryKey: ['classSession', id],
@@ -144,7 +146,7 @@ export default function ClassRoom() {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
-  // Draggable PiP (FaceTime style)
+  // Draggable PiP
   useEffect(() => {
     const pip = pipRef.current
     if (!pip || !joined) return
@@ -207,7 +209,7 @@ export default function ClassRoom() {
 
   useEffect(() => () => { void cleanup() }, [cleanup])
 
-  // Play local video (routes to main-player or local-player based on focus)
+  // Play local video
   useEffect(() => {
     if (!joined) return
     const t = setTimeout(() => {
@@ -222,7 +224,7 @@ export default function ClassRoom() {
     return () => clearTimeout(t)
   }, [joined, screenSharing, isLocalFocused])
 
-  // Play remote videos (routes to main-player or remote-player-${uid} based on focus)
+  // Play remote videos
   useEffect(() => {
     if (!joined) return
     const t = setTimeout(() => {
@@ -416,7 +418,7 @@ export default function ClassRoom() {
     }
   }
 
-  /* ── LOADING ── */
+  /* ── LOADING / ERROR / LOBBY (unchanged) ── */
   if (sessionQuery.isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white">
@@ -426,7 +428,6 @@ export default function ClassRoom() {
     )
   }
 
-  /* ── ERROR ── */
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white px-6">
@@ -442,14 +443,12 @@ export default function ClassRoom() {
     )
   }
 
-  /* ── LOBBY ── */
   if (!joined) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 relative">
         <button onClick={goBack} className="absolute top-6 left-6 p-2.5 bg-slate-800/80 hover:bg-slate-700 rounded-full transition-colors border border-slate-700">
           <RotateCcw size={18} />
         </button>
-
         <div className="flex flex-col items-center mb-8">
           <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-3xl font-bold shadow-lg shadow-blue-500/20 mb-4">
             {(user?.full_name || '?').charAt(0).toUpperCase()}
@@ -457,7 +456,6 @@ export default function ClassRoom() {
           <p className="text-xl font-semibold">{user?.full_name || 'You'}</p>
           <p className="text-slate-400 text-sm mt-1 capitalize">{user?.role === 'teacher' ? '🎓 Teacher' : '📖 Student'}</p>
         </div>
-
         <div className="text-center mb-8 max-w-sm">
           <h2 className="text-3xl md:text-4xl font-bold mb-3 bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
             {session?.subject || 'Class Session'}
@@ -472,7 +470,6 @@ export default function ClassRoom() {
             </div>
           )}
         </div>
-
         <button
           onClick={joinClass}
           disabled={joining}
@@ -491,7 +488,7 @@ export default function ClassRoom() {
     )
   }
 
-  /* ── IN-CALL ── */
+  /* ── IN-CALL UI (FaceTime + Zoom) ── */
   const filmstripParticipants = []
   if (!isLocalFocused) {
     filmstripParticipants.push({
@@ -509,13 +506,12 @@ export default function ClassRoom() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-950 text-white overflow-hidden selection:bg-emerald-500/30">
-      {/* Top Bar - Clean & Modern (same for 1:1 and Group) */}
+      {/* Top Bar */}
       <div className="shrink-0 h-14 bg-black/95 backdrop-blur-lg flex items-center justify-between px-4 border-b border-white/10 z-30">
         <div className="flex items-center gap-3">
           <span className="text-emerald-400 text-xl font-bold tracking-tight">ILM Connect</span>
           <div className="font-mono text-sm text-slate-300 tabular-nums">{fmt(elapsed)}</div>
         </div>
-
         <div className="flex items-center gap-2 bg-slate-900 px-3 py-1 rounded-3xl text-xs border border-slate-700">
           <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
           <span className="font-medium">{1 + remoteParticipants.length}</span>
@@ -524,14 +520,10 @@ export default function ClassRoom() {
 
       {/* Main Video Area */}
       <div className="flex-1 relative flex flex-col min-h-0 bg-slate-950">
-        
-        {/* ==================== 1:1 FACETIME MODE ==================== */}
+        {/* 1:1 FaceTime Mode */}
         {isOneToOne && (
           <div className="flex-1 relative h-full bg-black">
-            {/* Large Remote Video (FaceTime style) */}
             <div id="main-player" className="absolute inset-0 w-full h-full" />
-
-            {/* Camera off fallback for remote */}
             {focusedRemote && !focusedRemote.hasVideo && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900">
                 <div className="text-8xl mb-6">👤</div>
@@ -539,8 +531,6 @@ export default function ClassRoom() {
                 <p className="text-slate-400 mt-1">Camera is off</p>
               </div>
             )}
-
-            {/* Draggable Self PiP (FaceTime style) */}
             {!isLocalFocused && (
               <div
                 ref={pipRef}
@@ -551,23 +541,17 @@ export default function ClassRoom() {
                 <div className="absolute bottom-2 left-2 bg-black/70 text-xs px-3 py-px rounded-xl">You</div>
               </div>
             )}
-
-            {/* Live indicator */}
             <div className="absolute top-6 left-6 bg-red-500 text-white text-xs px-4 py-1 rounded-3xl flex items-center gap-1 font-medium z-30">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              LIVE
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse" /> LIVE
             </div>
           </div>
         )}
 
-        {/* ==================== GROUP / ZOOM MODE ==================== */}
+        {/* Group / Zoom Mode */}
         {!isOneToOne && (
           <div className="flex-1 flex flex-col p-3">
-            {/* Main Speaker View */}
             <div className="flex-1 relative rounded-3xl overflow-hidden bg-slate-900 border border-slate-700 shadow-2xl">
               <div id="main-player" className="w-full h-full" />
-
-              {/* Camera off fallback for focused remote */}
               {focusedRemote && !focusedRemote.hasVideo && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900">
                   <div className="text-7xl mb-6">👤</div>
@@ -575,8 +559,6 @@ export default function ClassRoom() {
                   <p className="text-slate-400">Camera is off</p>
                 </div>
               )}
-
-              {/* Speaker label */}
               <div className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between z-20">
                 <span className="text-base font-medium">
                   {isLocalFocused ? (screenSharing ? 'Your Screen' : 'You') : `Participant ${focusedRemote?.uid}`}
@@ -587,7 +569,6 @@ export default function ClassRoom() {
               </div>
             </div>
 
-            {/* Filmstrip / Gallery Thumbnails */}
             {filmstripParticipants.length > 0 && (
               <div className="mt-4 flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory">
                 {filmstripParticipants.map((p) => (
@@ -601,9 +582,7 @@ export default function ClassRoom() {
                     ) : (
                       <>
                         <div id={`remote-player-${p.uid}`} className={`w-full h-full ${p.hasVideo ? '' : 'hidden'}`} />
-                        {!p.hasVideo && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-3xl">👤</div>
-                        )}
+                        {!p.hasVideo && <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-3xl">👤</div>}
                       </>
                     )}
                     <div className="absolute bottom-1 left-1 bg-black/70 text-[10px] px-2 py-px rounded-lg">
@@ -618,38 +597,25 @@ export default function ClassRoom() {
         )}
       </div>
 
-      {/* Bottom Controls - Modern & Responsive */}
+      {/* Bottom Controls */}
       <div className="shrink-0 bg-black/90 backdrop-blur-lg border-t border-white/10 px-4 py-4 z-40">
         <div className="flex items-center justify-center gap-6 text-3xl">
-          {/* Mute */}
-          <button
-            onClick={toggleMic}
-            className={`flex flex-col items-center group ${micOn ? 'text-white' : 'text-red-400'}`}
-          >
+          <button onClick={toggleMic} className={`flex flex-col items-center group ${micOn ? 'text-white' : 'text-red-400'}`}>
             <div className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all active:scale-95">
               {micOn ? <Mic size={28} /> : <MicOff size={28} />}
             </div>
             <span className="text-xs mt-1 text-slate-400">Mute</span>
           </button>
 
-          {/* Video */}
-          <button
-            onClick={toggleCamera}
-            disabled={screenSharing}
-            className={`flex flex-col items-center group ${cameraOn ? 'text-white' : 'text-red-400'}`}
-          >
+          <button onClick={toggleCamera} disabled={screenSharing} className={`flex flex-col items-center group ${cameraOn ? 'text-white' : 'text-red-400'}`}>
             <div className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all active:scale-95">
               {cameraOn ? <Video size={28} /> : <VideoOff size={28} />}
             </div>
             <span className="text-xs mt-1 text-slate-400">Video</span>
           </button>
 
-          {/* Screen Share */}
           {canScreenShare && (
-            <button
-              onClick={toggleScreenShare}
-              className="flex flex-col items-center group text-white"
-            >
+            <button onClick={toggleScreenShare} className="flex flex-col items-center group text-white">
               <div className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all active:scale-95">
                 {screenSharing ? <ScreenShareOff size={28} /> : <ScreenShare size={28} />}
               </div>
@@ -657,48 +623,33 @@ export default function ClassRoom() {
             </button>
           )}
 
-          {/* Chat */}
-          <button
-            onClick={() => setChatOpen((v) => !v)}
-            className="flex flex-col items-center group text-white"
-          >
+          <button onClick={() => setChatOpen((v) => !v)} className="flex flex-col items-center group text-white">
             <div className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all active:scale-95">
               <MessageCircle size={28} />
             </div>
             <span className="text-xs mt-1 text-slate-400">Chat</span>
           </button>
 
-          {/* Leave / End */}
-          <button
-            onClick={endOrLeave}
-            className="bg-red-600 hover:bg-red-700 w-14 h-14 rounded-3xl flex items-center justify-center text-3xl active:scale-95 transition-all"
-          >
+          <button onClick={endOrLeave} className="bg-red-600 hover:bg-red-700 w-14 h-14 rounded-3xl flex items-center justify-center text-3xl active:scale-95 transition-all">
             {user?.role === 'teacher' ? <Phone size={28} className="rotate-[135deg]" /> : <PhoneOff size={28} />}
           </button>
         </div>
       </div>
 
-      {/* Chat Panel (unchanged) */}
+      {/* Chat Panel */}
       {chatOpen && (
         <div className="absolute right-0 top-0 bottom-0 w-full sm:w-80 bg-slate-900/95 backdrop-blur-md border-l border-slate-800 flex flex-col z-30">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
             <span className="font-semibold text-sm">Chat</span>
-            <button
-              onClick={() => setChatOpen(false)}
-              className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
-            >
+            <button onClick={() => setChatOpen(false)} className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors">
               <X size={16} className="text-slate-400" />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {chatMessages.length === 0 && (
-              <p className="text-center text-slate-500 text-sm py-8">No messages yet</p>
-            )}
+            {chatMessages.length === 0 && <p className="text-center text-slate-500 text-sm py-8">No messages yet</p>}
             {chatMessages.map((m) => (
               <div key={m.id} className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
-                {!m.mine && (
-                  <span className="text-[11px] text-slate-400 mb-1 ml-1">{m.senderName}</span>
-                )}
+                {!m.mine && <span className="text-[11px] text-slate-400 mb-1 ml-1">{m.senderName}</span>}
                 <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm ${m.mine ? 'bg-emerald-600 text-white rounded-br-md' : 'bg-slate-800 text-slate-200 rounded-bl-md border border-slate-700'}`}>
                   <p className="leading-relaxed">{m.text}</p>
                   <p className={`text-[10px] mt-1 ${m.mine ? 'text-emerald-200' : 'text-slate-500'}`}>
@@ -718,10 +669,7 @@ export default function ClassRoom() {
                 placeholder="Type a message…"
                 className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all"
               />
-              <button
-                onClick={sendChat}
-                className="p-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-colors shadow-lg shadow-emerald-600/20"
-              >
+              <button onClick={sendChat} className="p-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-colors shadow-lg shadow-emerald-600/20">
                 <Send size={16} />
               </button>
             </div>
