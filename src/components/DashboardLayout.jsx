@@ -117,8 +117,22 @@ export default function DashboardLayout() {
 
   const role = user?.role || ''
   const tabs = getTabsForRole(role)
-  const activeTab = searchParams.get('tab') || 'overview'
   const roleLabel = getRoleLabel(role)
+
+  // ── Active tab: React state is the source of truth, synced with URL ──
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'overview')
+
+  // Sync URL → state (e.g. browser back/forward, initial load)
+  useEffect(() => {
+    const urlTab = searchParams.get('tab') || 'overview'
+    setActiveTab(prev => prev !== urlTab ? urlTab : prev)
+  }, [searchParams])
+
+  // Sync state → URL (when user clicks sidebar buttons)
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId)
+    setSearchParams({ tab: tabId }, { replace: true })
+  }
 
   const unreadQuery = useQuery({
     queryKey: ['unreadCount', user?.id],
@@ -136,11 +150,6 @@ export default function DashboardLayout() {
   const teacherNotificationCount = role === 'teacher' ? (teacherNotificationsQuery.data?.unreadCount || 0) : 0
 
   useEffect(() => { setMobileOpen(false) }, [activeTab])
-
-  const handleTabChange = (tabId) => {
-    setSearchParams({ tab: tabId }, { replace: true })
-  }
-
   const handleLogout = () => {
     logout()
     navigate('/', { replace: true })
