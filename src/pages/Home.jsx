@@ -181,7 +181,7 @@ export default function Home() {
                 className="font-display text-5xl sm:text-6xl lg:text-[4.5rem] font-black text-ink leading-[1.05] tracking-tight mb-6">
                 Learn Quran<br />
                 <span className="text-emerald">with the Best</span><br />
-                <span className="text-gold">Teachers</span> 🌟
+                <span className="text-gold">Teachers</span>
               </motion.h1>
               <motion.p initial="hidden" animate="visible" variants={fadeUp} custom={2}
                 className="text-ink-soft text-lg sm:text-xl leading-relaxed max-w-lg mb-10">
@@ -198,12 +198,14 @@ export default function Home() {
               <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={4}
                 className="mt-10 grid max-w-lg grid-cols-2 gap-3 sm:mt-14 sm:grid-cols-3 sm:gap-4">
                 {[
-                  { val: '100+', label: 'Teachers', icon: '👨‍🏫' },
-                  { val: '1,000+', label: 'Students', icon: '📚' },
-                  { val: '4.9★', label: 'Rating', icon: '⭐' },
+                  { val: '100+', label: 'Teachers', Icon: GraduationCap },
+                  { val: '1,000+', label: 'Students', Icon: Users },
+                  { val: '4.9', label: 'Rating', Icon: Star },
                 ].map((s) => (
                   <div key={s.label} className="flex min-w-0 items-center gap-3 rounded-2xl border-2 border-parchment/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-sm sm:bg-transparent sm:px-0 sm:py-0 sm:border-0 sm:shadow-none">
-                    <div className="text-2xl flex-shrink-0">{s.icon}</div>
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald/10 border border-emerald/20">
+                      <s.Icon size={20} className="text-emerald" />
+                    </div>
                     <div>
                       <div className="font-display font-black text-lg leading-none text-ink sm:text-xl">{s.val}</div>
                       <div className="mt-1 text-bark text-[11px] font-bold leading-none sm:text-xs">{s.label}</div>
@@ -217,8 +219,8 @@ export default function Home() {
             <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }} className="hidden lg:block relative">
               <div className="relative mx-auto w-full max-w-[28rem]">
                 {/* Floating decorative elements */}
-                <div className="absolute -top-6 -right-6 w-20 h-20 rounded-2xl bg-gold/20 border-2 border-gold/30 flex items-center justify-center text-3xl animate-lingo-bounce rotate-12">📖</div>
-                <div className="absolute -bottom-4 -left-6 w-16 h-16 rounded-2xl bg-purple/20 border-2 border-purple/30 flex items-center justify-center text-2xl animate-lingo-bounce" style={{ animationDelay: '1s' }}>🎓</div>
+                <div className="absolute -top-6 -right-6 w-20 h-20 rounded-2xl bg-gold/20 border-2 border-gold/30 flex items-center justify-center animate-lingo-bounce rotate-12"><BookOpen size={28} className="text-gold-muted" /></div>
+                <div className="absolute -bottom-4 -left-6 w-16 h-16 rounded-2xl bg-purple/20 border-2 border-purple/30 flex items-center justify-center animate-lingo-bounce" style={{ animationDelay: '1s' }}><GraduationCap size={24} className="text-purple" /></div>
                 <div className="absolute -left-18 top-18 hidden w-24 xl:block animate-breathe art-breathing" style={{ animationDelay: '0.7s' }}>
                   <img src={happyMomArt} alt="Parent illustration" className="h-full w-full object-contain" />
                 </div>
@@ -262,15 +264,15 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { icon: ShieldCheck, title: 'Verified teachers', text: 'Public profiles, ratings, and approval workflow.', emoji: '✅' },
-              { icon: Globe, title: 'Global access', text: 'Learn from home with flexible scheduling.', emoji: '🌍' },
-              { icon: Calendar, title: 'Live booking', text: 'Book sessions and manage classes in one place.', emoji: '📅' },
-              { icon: Video, title: 'Integrated classes', text: 'Live video, messaging, and recordings built-in.', emoji: '🎥' },
+              { icon: ShieldCheck, title: 'Verified teachers', text: 'Public profiles, ratings, and approval workflow.' },
+              { icon: Globe, title: 'Global access', text: 'Learn from home with flexible scheduling.' },
+              { icon: Calendar, title: 'Live booking', text: 'Book sessions and manage classes in one place.' },
+              { icon: Video, title: 'Integrated classes', text: 'Live video, messaging, and recordings built-in.' },
             ].map((item, i) => (
               <motion.div key={item.title} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={pop} custom={i}
                 className="flex items-start gap-4 rounded-2xl bg-ivory px-5 py-5 border-2 border-parchment/50 hover:border-emerald/20 transition-colors">
-                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald/10 border-b-[3px] border-emerald/20 text-xl">
-                  {item.emoji}
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald/10 border-b-[3px] border-emerald/20">
+                  <item.icon size={22} className="text-emerald" />
                 </div>
                 <div>
                   <div className="font-extrabold text-ink">{item.title}</div>
@@ -480,7 +482,7 @@ export default function Home() {
         <div className="absolute inset-0 bg-gradient-to-b from-ivory to-emerald-pale/20" />
         <div className="relative max-w-4xl mx-auto px-6 lg:px-8 text-center">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-100px' }} variants={pop}>
-            <div className="text-5xl mb-6">🚀</div>
+            <div className="mb-6 flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-emerald/10 border-2 border-emerald/20"><Sparkles size={28} className="text-emerald" /></div>
             <h2 className="font-display text-4xl sm:text-5xl font-black text-ink tracking-tight mb-6">
               Begin Your Journey <span className="text-emerald">Today</span>
             </h2>

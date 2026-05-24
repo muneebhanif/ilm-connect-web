@@ -147,3 +147,18 @@ export function TextInput({ label, as = 'input', className = '', ...props }) {
 export function GridList({ children, cols = 'md:grid-cols-2 xl:grid-cols-3' }) {
   return <div className={`grid gap-4 ${cols}`}>{children}</div>
 }
+
+export function PageHeader({ title, description, actions, children }) {
+  return (
+    <div className="px-5 py-6 lg:px-10 lg:py-8">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl lg:text-4xl">{title}</h1>
+          {description && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-bark">{description}</p>}
+        </div>
+        {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
+      </div>
+      {children}
+    </div>
+  )
+}

@@ -8,24 +8,11 @@ import {
 import { useAuth } from '../../lib/auth.jsx'
 import toast from 'react-hot-toast'
 import { api, authFetch } from '../../lib/api.js'
-import { StatCard, SectionCard, EmptyState, StatusPill, ActionButton, TextInput, GridList } from '../../components/dashboard-ui.jsx'
+import { StatCard, SectionCard, EmptyState, StatusPill, ActionButton, TextInput, GridList, PageHeader } from '../../components/dashboard-ui.jsx'
 import MessageCenter from '../../components/MessageCenter.jsx'
 import { SectionRowsSkeleton, SkeletonBlock } from '../../components/skeletons.jsx'
 
-function PageHeader({ title, description, actions, children }) {
-  return (
-    <div className="px-6 py-8 lg:px-10">
-      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">{title}</h1>
-          {description && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-bark">{description}</p>}
-        </div>
-        {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
-      </div>
-      {children}
-    </div>
-  )
-}
+
 
 function getLiveClassMeta(item = {}) {
   const liveStatus = String(item.live_status || '').toLowerCase()

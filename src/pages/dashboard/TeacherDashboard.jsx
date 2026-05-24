@@ -10,7 +10,7 @@ import { useAuth } from '../../lib/auth.jsx'
 import toast from 'react-hot-toast'
 import { api, authFetch, apiFetch, normalizeTeacherProfileResponse, getCourseThumbnail } from '../../lib/api.js'
 import { fileToBase64, getFileExtension } from '../../lib/files.js'
-import { StatCard, SectionCard, EmptyState, StatusPill, ActionButton, TextInput, GridList } from '../../components/dashboard-ui.jsx'
+import { StatCard, SectionCard, EmptyState, StatusPill, ActionButton, TextInput, GridList, PageHeader } from '../../components/dashboard-ui.jsx'
 import MessageCenter from '../../components/MessageCenter.jsx'
 import { SectionRowsSkeleton, SkeletonBlock } from '../../components/skeletons.jsx'
 import TeacherStudentsTab from '../../components/dashboard/TeacherStudentsTab.jsx'
@@ -148,20 +148,7 @@ function mapErr(msg = '') {
   return msg || 'Something went wrong.'
 }
 
-function PageHeader({ title, description, actions, children }) {
-  return (
-    <div className="px-6 py-8 lg:px-10">
-      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">{title}</h1>
-          {description && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-bark">{description}</p>}
-        </div>
-        {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
-      </div>
-      {children}
-    </div>
-  )
-}
+
 
 const PAYOUT_METHODS_WEB = [
   { key: 'payoneer', label: 'Payoneer' },
@@ -363,8 +350,8 @@ export default function TeacherDashboard() {
             <StatusPill tone={getVerificationTone(verificationStatus)}>{verificationStatus}</StatusPill>
             <div className="text-sm text-bark">{documents.length} document{documents.length === 1 ? '' : 's'} uploaded</div>
             <div className="flex flex-wrap gap-2">
-              <Link to="?tab=assets" className="rounded-2xl bg-emerald px-4 py-2.5 text-sm font-semibold text-white">Open verification</Link>
-              <Link to="?tab=profile" className="rounded-2xl border border-parchment bg-white px-4 py-2.5 text-sm font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Complete profile</Link>
+              <button onClick={() => setActiveTab('assets')} className="rounded-2xl bg-emerald px-4 py-2.5 text-sm font-semibold text-white">Open verification</button>
+              <button onClick={() => setActiveTab('profile')} className="rounded-2xl border border-parchment bg-white px-4 py-2.5 text-sm font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Complete profile</button>
             </div>
           </div>
         </div>
@@ -542,7 +529,7 @@ export default function TeacherDashboard() {
           </form>
         </SectionCard>
         <SectionCard title="Your courses">
-          {coursesQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-44" /> : courses.length === 0 ? <EmptyState icon={BookOpen} title="No courses yet" text="Create your first course." /> : <div className="space-y-4">{courses.map(c => <div key={c.id} className="overflow-hidden rounded-[24px] border border-parchment/50 bg-white"><img src={getCourseThumbnail(c)} alt={c.title} className="h-36 w-full object-cover" /><div className="p-5"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><div className="font-semibold text-ink">{c.title}</div><div className="mt-1 text-sm text-bark">{c.subject || 'General'} • {c.level || 'beginner'}</div><div className="mt-1 text-xs text-bark">{c.total_lessons || 0} lessons • {c.is_free ? 'Free' : `$${c.price}`}</div></div><div className="flex flex-wrap gap-2"><Link to="?tab=lessons" onClick={() => setSelectedCourseId(c.id)} className="rounded-xl border border-parchment px-3 py-2 text-sm font-semibold text-ink-soft hover:border-emerald/20">Lessons</Link><button onClick={() => { setCourseForm({ id: c.id, title: c.title || '', description: c.description || '', subject: c.subject || '', level: c.level || 'beginner', price: String(c.price || ''), is_free: !!c.is_free, total_lessons: String(c.total_lessons || ''), thumbnail_url: c.thumbnail_url || '' }); setCourseThumbnailPreview(c.thumbnail_url || ''); setCourseThumbnailFile(null) }} className="rounded-xl bg-emerald/10 px-3 py-2 text-sm font-semibold text-emerald">Edit</button><button onClick={() => deleteCourse.mutate(c.id)} className="rounded-xl bg-rose/10 px-3 py-2 text-sm font-semibold text-rose">Delete</button></div></div></div></div>)}</div>}
+          {coursesQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-44" /> : courses.length === 0 ? <EmptyState icon={BookOpen} title="No courses yet" text="Create your first course." /> : <div className="space-y-4">{courses.map(c => <div key={c.id} className="overflow-hidden rounded-[24px] border border-parchment/50 bg-white"><img src={getCourseThumbnail(c)} alt={c.title} className="h-36 w-full object-cover" /><div className="p-5"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><div className="font-semibold text-ink">{c.title}</div><div className="mt-1 text-sm text-bark">{c.subject || 'General'} • {c.level || 'beginner'}</div><div className="mt-1 text-xs text-bark">{c.total_lessons || 0} lessons • {c.is_free ? 'Free' : `$${c.price}`}</div></div><div className="flex flex-wrap gap-2"><button onClick={() => { setSelectedCourseId(c.id); setActiveTab('lessons') }} className="rounded-xl border border-parchment px-3 py-2 text-sm font-semibold text-ink-soft hover:border-emerald/20">Lessons</button><button onClick={() => { setCourseForm({ id: c.id, title: c.title || '', description: c.description || '', subject: c.subject || '', level: c.level || 'beginner', price: String(c.price || ''), is_free: !!c.is_free, total_lessons: String(c.total_lessons || ''), thumbnail_url: c.thumbnail_url || '' }); setCourseThumbnailPreview(c.thumbnail_url || ''); setCourseThumbnailFile(null) }} className="rounded-xl bg-emerald/10 px-3 py-2 text-sm font-semibold text-emerald">Edit</button><button onClick={() => deleteCourse.mutate(c.id)} className="rounded-xl bg-rose/10 px-3 py-2 text-sm font-semibold text-rose">Delete</button></div></div></div></div>)}</div>}
         </SectionCard>
       </div>
     </PageHeader>
@@ -557,7 +544,7 @@ export default function TeacherDashboard() {
           {selectedCourseId && <form className="mt-6 space-y-4 border-t border-parchment/40 pt-6" onSubmit={e => { e.preventDefault(); if (lessonFile) { uploadLesson.mutate({ file: lessonFile, payload: { teacher_id: user.id, title: lessonForm.title, description: lessonForm.description, is_preview: lessonForm.is_preview } }); return }; createLesson.mutate({ teacher_id: user.id, title: lessonForm.title, description: lessonForm.description, content_type: 'video', content_url: lessonForm.content_url, is_preview: lessonForm.is_preview }) }}>
             <TextInput label="Lesson title" value={lessonForm.title} onChange={e => setLessonForm(p => ({ ...p, title: e.target.value }))} />
             <TextInput label="Description" as="textarea" rows="2" value={lessonForm.description} onChange={e => setLessonForm(p => ({ ...p, description: e.target.value }))} />
-            <div><label className="mb-2 block text-sm font-semibold text-ink-soft">Upload video</label><input type="file" accept="video/mp4,video/quicktime,.mp4,.mov,.m4v,.webm" onChange={e => { const f = e.target.files?.[0]; setLessonFile(f || null); if (f && !lessonForm.title.trim()) setLessonForm(p => ({ ...p, title: f.name.replace(/\.[^/.]+$/, '') })) }} className={fileInputClass} />{lessonFile && <div className="mt-2 text-xs font-medium text-emerald">✓ {lessonFile.name}</div>}</div>
+            <div><label className="mb-2 block text-sm font-semibold text-ink-soft">Upload video</label><input type="file" accept="video/mp4,video/quicktime,.mp4,.mov,.m4v,.webm" onChange={e => { const f = e.target.files?.[0]; setLessonFile(f || null); if (f && !lessonForm.title.trim()) setLessonForm(p => ({ ...p, title: f.name.replace(/\.[^/.]+$/, '') })) }} className={fileInputClass} />{lessonFile && <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald"><CheckCircle2 size={12} /> {lessonFile.name}</div>}</div>
             <TextInput label="Or video URL" value={lessonForm.content_url} onChange={e => setLessonForm(p => ({ ...p, content_url: e.target.value }))} disabled={!!lessonFile} placeholder="https://..." />
             <label className="flex items-center gap-3 text-sm font-semibold text-ink-soft"><input type="checkbox" checked={lessonForm.is_preview} onChange={e => setLessonForm(p => ({ ...p, is_preview: e.target.checked }))} className="rounded" /> Preview lesson</label>
             <ActionButton type="submit" disabled={createLesson.isPending || uploadLesson.isPending} icon={Plus}>{createLesson.isPending || uploadLesson.isPending ? 'Adding...' : 'Add lesson'}</ActionButton>

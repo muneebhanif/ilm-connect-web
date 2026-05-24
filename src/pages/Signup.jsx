@@ -60,7 +60,7 @@ export default function Signup() {
                 <img src="/logo/bgremovedlogo.png" alt="IlmConnect" className="w-11 h-11 rounded-lg" />
               </div>
             </Link>
-            <h1 className="font-display text-2xl font-black text-ink">Join IlmConnect! 🎉</h1>
+            <h1 className="font-display text-2xl font-black text-ink">Join IlmConnect</h1>
             <p className="text-bark text-sm mt-1 font-semibold">Create your account to get started</p>
           </div>
 

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Mic, MicOff, Video, VideoOff, Phone, PhoneOff,
   MessageCircle, X, Send, Users, Clock, RotateCcw, ScreenShare, ScreenShareOff,
+  User, GraduationCap, BookOpen,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth.jsx'
 import { api, authFetch } from '../lib/api'
@@ -454,7 +455,7 @@ export default function ClassRoom() {
             {(user?.full_name || '?').charAt(0).toUpperCase()}
           </div>
           <p className="text-xl font-semibold">{user?.full_name || 'You'}</p>
-          <p className="text-slate-400 text-sm mt-1 capitalize">{user?.role === 'teacher' ? '🎓 Teacher' : '📖 Student'}</p>
+          <p className="text-slate-400 text-sm mt-1 capitalize flex items-center gap-1.5">{user?.role === 'teacher' ? <><GraduationCap size={14} /> Teacher</> : <><BookOpen size={14} /> Student</>}</p>
         </div>
         <div className="text-center mb-8 max-w-sm">
           <h2 className="text-3xl md:text-4xl font-bold mb-3 bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
@@ -526,7 +527,7 @@ export default function ClassRoom() {
             <div id="main-player" className="absolute inset-0 w-full h-full" />
             {focusedRemote && !focusedRemote.hasVideo && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900">
-                <div className="text-8xl mb-6">👤</div>
+                <div className="w-24 h-24 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center mb-6"><User size={48} className="text-slate-500" /></div>
                 <p className="text-2xl font-medium">Participant</p>
                 <p className="text-slate-400 mt-1">Camera is off</p>
               </div>
@@ -554,7 +555,7 @@ export default function ClassRoom() {
               <div id="main-player" className="w-full h-full" />
               {focusedRemote && !focusedRemote.hasVideo && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900">
-                  <div className="text-7xl mb-6">👤</div>
+                  <div className="w-20 h-20 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center mb-6"><User size={40} className="text-slate-500" /></div>
                   <p className="text-xl font-medium">Speaker</p>
                   <p className="text-slate-400">Camera is off</p>
                 </div>
@@ -582,7 +583,7 @@ export default function ClassRoom() {
                     ) : (
                       <>
                         <div id={`remote-player-${p.uid}`} className={`w-full h-full ${p.hasVideo ? '' : 'hidden'}`} />
-                        {!p.hasVideo && <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-3xl">👤</div>}
+                        {!p.hasVideo && <div className="absolute inset-0 flex items-center justify-center bg-slate-800"><User size={24} className="text-slate-500" /></div>}
                       </>
                     )}
                     <div className="absolute bottom-1 left-1 bg-black/70 text-[10px] px-2 py-px rounded-lg">

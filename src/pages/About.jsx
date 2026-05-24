@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import { Globe, Shield, Smartphone, Heart, ArrowRight } from 'lucide-react'
+import { Globe, Shield, Smartphone, Heart, ArrowRight, Sparkles } from 'lucide-react'
 
 const ABOUT_HERO_PHOTO = 'https://images.unsplash.com/photo-1513072064285-240f87fa81e8?w=1600&q=80&auto=format&fit=crop'
 const ABOUT_MISSION_PHOTO = 'https://images.unsplash.com/photo-1564769625905-50e93615e769?w=1200&q=80&auto=format&fit=crop'
@@ -127,7 +127,7 @@ export default function About() {
       <section className="py-20 bg-emerald-deep relative overflow-hidden">
         <div className="absolute inset-0 lingo-dots opacity-10" />
         <div className="relative max-w-4xl mx-auto px-6 text-center">
-          <div className="text-4xl mb-4">🚀</div>
+          <div className="mb-4 flex h-14 w-14 mx-auto items-center justify-center rounded-2xl bg-white/10 border border-white/20"><Sparkles size={24} className="text-white" /></div>
           <h2 className="font-display text-3xl sm:text-4xl font-black text-white mb-6">Ready to Start Learning?</h2>
           <p className="text-emerald-light/80 text-lg mb-8 font-semibold">Join thousands of families using IlmConnect for Islamic education.</p>
           <Link to="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-white text-emerald-deep font-extrabold rounded-2xl border-b-4 border-parchment hover:brightness-95 active:border-b-0 active:mt-1 transition-all text-lg shadow-xl">

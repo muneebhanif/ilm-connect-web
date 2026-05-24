@@ -10,24 +10,11 @@ import { useAuth } from '../../lib/auth.jsx'
 import toast from 'react-hot-toast'
 import { api, authFetch } from '../../lib/api.js'
 import { fileToBase64, getFileExtension } from '../../lib/files.js'
-import { StatCard, SectionCard, EmptyState, StatusPill, ActionButton, TextInput, GridList } from '../../components/dashboard-ui.jsx'
+import { StatCard, SectionCard, EmptyState, StatusPill, ActionButton, TextInput, GridList, PageHeader } from '../../components/dashboard-ui.jsx'
 import MessageCenter from '../../components/MessageCenter.jsx'
 import { SectionRowsSkeleton, SkeletonBlock } from '../../components/skeletons.jsx'
 
-function PageHeader({ title, description, actions, children }) {
-  return (
-    <div className="px-5 py-6 lg:px-10 lg:py-8">
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl lg:text-4xl">{title}</h1>
-          {description && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-bark">{description}</p>}
-        </div>
-        {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
-      </div>
-      {children}
-    </div>
-  )
-}
+
 
 function formatDate(item) {
   const raw = item.scheduled_date || item.scheduled_at || item.date

@@ -45,7 +45,7 @@ export default function ForgotPassword() {
             <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald/10 border-2 border-emerald/20 border-b-4">
               <Mail size={28} className="text-emerald" />
             </div>
-            <h1 className="font-display text-3xl font-black text-ink">Forgot password? 🔐</h1>
+            <h1 className="font-display text-3xl font-black text-ink">Forgot Password</h1>
             <p className="mt-2 text-sm text-bark font-semibold">Enter your email and we'll send a reset link.</p>
           </div>
 

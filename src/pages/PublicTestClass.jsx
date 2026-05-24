@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, Send, MessageCircle, X, Sparkles, ArrowLeftRight } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, Send, MessageCircle, X, Sparkles, ArrowLeftRight, User } from 'lucide-react'
 import { api, apiFetch } from '../lib/api.js'
 
 const TEST_CHANNEL = 'ilmconnect-web-test-room'
@@ -319,7 +319,7 @@ export default function PublicTestClass() {
             <div className="absolute inset-0 flex items-center justify-center bg-[#0B1120]">
               {remoteUids.length === 0 ? (
                 <div className="text-center">
-                  <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-emerald/20 bg-emerald/10 text-4xl">👤</div>
+                  <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border border-emerald/20 bg-emerald/10"><User size={40} className="text-emerald/60" /></div>
                   <p className="mt-5 text-sm text-white/40">Waiting for another tester to join…</p>
                 </div>
               ) : (

@@ -48,7 +48,7 @@ export default function Footer() {
         <div className="mt-14 pt-6 border-t-2 border-bark/20 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sand/60 text-xs font-semibold">&copy; {new Date().getFullYear()} IlmConnect. All rights reserved.</p>
           <div className="flex items-center gap-1.5 text-sand/50 text-xs font-bold">
-            Built with <Heart size={12} className="text-rose animate-pulse" /> for the Ummah 🌙
+            Built with <Heart size={12} className="text-rose animate-pulse" /> for the Ummah
           </div>
         </div>
       </div>
