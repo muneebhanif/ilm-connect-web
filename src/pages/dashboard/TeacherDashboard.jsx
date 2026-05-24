@@ -4,6 +4,7 @@ import { Link, useOutletContext } from 'react-router-dom'
 import {
   Calendar, Users, BookOpen, Clock3, Video, Bell, Star, ListVideo, ImagePlus, Plus, Trash2, Save,
   ShieldCheck, FileText, Upload, CirclePlay, Wallet, ExternalLink, CheckCircle2, Circle, AlertTriangle,
+  RotateCcw, X as XIcon,
 } from 'lucide-react'
 import { useAuth } from '../../lib/auth.jsx'
 import toast from 'react-hot-toast'
@@ -253,6 +254,8 @@ export default function TeacherDashboard() {
   const [recordingForm, setRecordingForm] = useState({ sessionId: '', title: '', description: '', visibility: 'paid', durationSeconds: '' })
   const [editingRecording, setEditingRecording] = useState(null)
   const [availabilityDraft, setAvailabilityDraft] = useState(() => normalizeAvailabilityMap())
+  const [rescheduleModal, setRescheduleModal] = useState({ open: false, sessionId: null, sessionTitle: '' })
+  const [rescheduleDate, setRescheduleDate] = useState('')
 
   const scheduleQ = useQuery({ queryKey: ['teacherSchedule', user?.id], queryFn: () => authFetch(api.teacherSchedule(user.id), token), enabled: !!user?.id && !!token, refetchInterval: 10000 })
   const studentsQ = useQuery({ queryKey: ['teacherStudents', user?.id], queryFn: () => authFetch(api.teacherStudents(user.id), token), enabled: !!user?.id && !!token })
@@ -263,6 +266,7 @@ export default function TeacherDashboard() {
   const docsQ = useQuery({ queryKey: ['teacherDocuments', user?.id], queryFn: () => authFetch(api.teacherDocuments(user.id), token), enabled: !!user?.id && !!token })
   const lessonsQ = useQuery({ queryKey: ['courseLessons', selectedCourseId, user?.id], queryFn: () => authFetch(api.courseLessons(selectedCourseId, user.id), token), enabled: !!selectedCourseId && !!user?.id && !!token })
   const recordingsQ = useQuery({ queryKey: ['teacherRecordings', user?.id], queryFn: () => authFetch(api.teacherRecordings(user.id), token), enabled: !!user?.id && !!token })
+  const missedQ = useQuery({ queryKey: ['teacherMissedClasses', user?.id], queryFn: () => authFetch(api.teacherMissedClasses(user.id), token), enabled: !!user?.id && !!token })
 
   const teacher = normalizeTeacherProfileResponse(profileQ.data || {}, user?.id)
   const stats = teacher.stats || {}
@@ -308,6 +312,7 @@ export default function TeacherDashboard() {
   const updateRecording = useMutation({ mutationFn: ({ recordingId, payload }) => authFetch(api.updateClassRecording(user.id, recordingId), token, { method: 'PATCH', body: JSON.stringify(payload) }), onSuccess: () => { toast.success('Recording updated'); setEditingRecording(null); qc.invalidateQueries({ queryKey: ['teacherRecordings', user.id] }) }, onError: (err) => toast.error(err?.message || 'Update failed') })
   const deleteRecording = useMutation({ mutationFn: (recordingId) => authFetch(api.deleteClassRecording(user.id, recordingId), token, { method: 'DELETE' }), onSuccess: () => { toast.success('Recording deleted'); qc.invalidateQueries({ queryKey: ['teacherRecordings', user.id] }) }, onError: (err) => toast.error(err?.message || 'Delete failed') })
   const classAction = useMutation({ mutationFn: ({ type, sessionId }) => authFetch(type === 'start' ? api.startClass(sessionId) : api.endClass(sessionId), token, { method: 'POST' }), onSuccess: (_, v) => { toast.success(v.type === 'start' ? 'Class started' : 'Class ended'); qc.invalidateQueries({ queryKey: ['teacherSchedule', user.id] }) }, onError: (err) => toast.error(err?.message || 'Action failed') })
+  const rescheduleSession = useMutation({ mutationFn: ({ sessionId, newSessionDate }) => authFetch(api.teacherRescheduleSession(user.id, sessionId), token, { method: 'POST', body: JSON.stringify({ newSessionDate }) }), onSuccess: () => { toast.success('Session rescheduled successfully!'); setRescheduleModal({ open: false, sessionId: null, sessionTitle: '' }); setRescheduleDate(''); qc.invalidateQueries({ queryKey: ['teacherMissedClasses', user.id] }); qc.invalidateQueries({ queryKey: ['teacherSchedule', user.id] }) }, onError: (err) => toast.error(err?.message || 'Reschedule failed') })
   const connectOnboarding = useMutation({ mutationFn: () => authFetch(api.teacherConnectOnboarding(), token, { method: 'POST', body: JSON.stringify({ refreshUrl: `${window.location.origin}/dashboard/teacher?tab=payouts`, returnUrl: `${window.location.origin}/dashboard/teacher?tab=payouts` }) }), onSuccess: (d) => { if (d?.onboardingUrl) window.open(d.onboardingUrl, '_blank') }, onError: (err) => toast.error(err?.message || 'Failed to start Stripe onboarding') })
   const stripeDash = useMutation({ mutationFn: () => authFetch(api.teacherDashboardLink(), token, { method: 'POST' }), onSuccess: (d) => { if (d?.dashboardUrl) window.open(d.dashboardUrl, '_blank') } })
 
@@ -455,6 +460,41 @@ export default function TeacherDashboard() {
           {scheduleQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-24" /> : scheduleGroups.upcoming.length === 0 ? <EmptyState icon={Calendar} title="No upcoming sessions" text="New bookings will appear here with the soonest first." /> : <div className="space-y-4">{scheduleGroups.upcoming.map(s => <div key={s.id} className="rounded-[24px] border border-parchment/50 bg-white p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><StatusPill tone="gold">upcoming</StatusPill><span className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/70">{formatSessionDateLabel(s.session_date)}</span></div><div className="mt-2 font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'} • {s.duration_minutes || 60} min</div></div><div className="flex flex-wrap items-center gap-2"><Link to={`/classroom/${s.id}`} className="rounded-xl border border-parchment px-4 py-2 text-sm font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Open room</Link><button onClick={() => classAction.mutate({ type: 'start', sessionId: s.id })} disabled={classAction.isPending} className="rounded-xl bg-emerald px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Start now</button></div></div></div>)}</div>}
         </SectionCard>
       </div>
+      {/* ── Missed Classes ── */}
+      <div className="mt-6">
+        <SectionCard title="Missed classes" subtitle="Classes that were not started. You can reschedule them for a new date.">
+          {missedQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-24" /> : (missedQ.data?.sessions || []).length === 0 ? <EmptyState icon={RotateCcw} title="No missed classes" text="Great job! All your classes have been attended or handled." /> : <div className="space-y-4">{(missedQ.data?.sessions || []).map(s => <div key={s.id} className="rounded-[24px] border border-rose/20 bg-gradient-to-r from-rose/5 via-white to-gold/5 p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="flex gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose/10 text-rose shadow-sm"><AlertTriangle size={20} /></div><div><div className="flex flex-wrap items-center gap-2"><StatusPill tone="rose">missed</StatusPill><span className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/70">{formatSessionDateLabel(s.session_date)}</span></div><div className="mt-2 text-lg font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'} • {s.duration_minutes || 60} min</div></div></div><div className="flex flex-wrap items-center gap-2"><button onClick={() => { setRescheduleModal({ open: true, sessionId: s.id, sessionTitle: s.courses?.title || 'Session' }); setRescheduleDate('') }} className="inline-flex items-center gap-2 rounded-xl bg-emerald px-4 py-2 text-sm font-semibold text-white hover:bg-emerald/90 transition"><RotateCcw size={14} /> Reschedule</button></div></div></div>)}</div>}
+        </SectionCard>
+      </div>
+
+      {/* ── Reschedule Modal ── */}
+      {rescheduleModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm" onClick={() => setRescheduleModal({ open: false, sessionId: null, sessionTitle: '' })}>
+          <div className="w-full max-w-md rounded-[28px] bg-white p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-ink">Reschedule Class</h3>
+              <button onClick={() => setRescheduleModal({ open: false, sessionId: null, sessionTitle: '' })} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-ivory text-bark"><XIcon size={18} /></button>
+            </div>
+            <p className="text-sm text-bark mb-4">Choose a new date and time for <span className="font-semibold text-ink">{rescheduleModal.sessionTitle}</span></p>
+            <input
+              type="datetime-local"
+              value={rescheduleDate}
+              onChange={e => setRescheduleDate(e.target.value)}
+              min={new Date().toISOString().slice(0, 16)}
+              className="w-full rounded-2xl border-2 border-parchment bg-ivory px-4 py-3 text-sm text-ink focus:border-emerald focus:outline-none focus:ring-4 focus:ring-emerald/10 transition"
+            />
+            <div className="flex gap-3 mt-6">
+              <ActionButton
+                onClick={() => { if (!rescheduleDate) { toast.error('Please select a date and time'); return }; rescheduleSession.mutate({ sessionId: rescheduleModal.sessionId, newSessionDate: new Date(rescheduleDate).toISOString() }) }}
+                disabled={rescheduleSession.isPending || !rescheduleDate}
+                icon={RotateCcw}
+              >{rescheduleSession.isPending ? 'Rescheduling...' : 'Confirm Reschedule'}</ActionButton>
+              <button onClick={() => setRescheduleModal({ open: false, sessionId: null, sessionTitle: '' })} className="rounded-2xl border border-parchment px-5 py-3 text-sm font-semibold text-ink-soft">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6">
         <SectionCard title="Past sessions">
           {scheduleQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-20" /> : scheduleGroups.history.length === 0 ? <EmptyState icon={Clock3} title="No past sessions" text="Completed or missed sessions will be listed here." /> : <div className="space-y-3">{scheduleGroups.history.map(s => { const completed = String(s.status || '').toLowerCase() === 'completed'; const cancelled = String(s.status || '').toLowerCase() === 'cancelled'; return <div key={s.id} className="flex flex-col gap-3 rounded-[22px] border border-parchment/50 bg-ivory/55 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-semibold text-ink">{s.courses?.title || 'Session'}</div><div className="mt-1 text-sm text-bark">{s.students?.name || 'Student'}</div><div className="mt-1 text-xs text-bark">{formatSessionDateLabel(s.session_date)}</div></div><div className="flex flex-wrap items-center gap-2"><StatusPill tone={completed ? 'emerald' : cancelled ? 'rose' : 'gold'}>{completed ? 'completed' : cancelled ? 'cancelled' : 'ended'}</StatusPill>{!completed && !cancelled && <div className="flex items-center gap-1 text-xs font-medium text-bark"><AlertTriangle size={12} /> Needs follow-up</div>}</div></div>})}</div>}
