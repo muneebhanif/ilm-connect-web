@@ -48,7 +48,7 @@ body {
 
 /* ── Dashboard Experience Layer ── */
 .dashboard-root {
-  --font-display: 'Fraunces', 'Nunito', system-ui, sans-serif;
+  --font-display: 'Nunito', system-ui, sans-serif;
   --dashboard-accent: var(--color-emerald);
   --dashboard-accent-soft: rgba(46, 158, 46, 0.1);
   color-scheme: light;
@@ -66,7 +66,6 @@ body {
   --dashboard-accent-soft: rgba(255, 200, 0, 0.14);
 }
 .dashboard-root[data-dashboard-role='admin'] {
-  --font-display: 'JetBrains Mono', 'Nunito', monospace;
   --dashboard-accent: var(--color-rose);
   --dashboard-accent-soft: rgba(255, 75, 75, 0.12);
   color-scheme: dark;
@@ -336,4 +335,23 @@ body {
 ::selection {
   background: color-mix(in srgb, var(--color-emerald) 25%, transparent);
   color: var(--color-ink);
+}
+
+
+/* ── Public Frontend Polish ── */
+.public-home {
+  --font-display: 'Fraunces', 'Nunito', system-ui, sans-serif;
+  --public-paper: #f6f3e8;
+  --public-ink: var(--color-ink);
+}
+.public-home::selection {
+  background: color-mix(in srgb, var(--color-gold) 32%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .public-home *,
+  nav * {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

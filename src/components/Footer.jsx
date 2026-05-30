@@ -1,54 +1,64 @@
 import { Link } from 'react-router-dom'
-import { BookOpen, Users, GraduationCap, Heart } from 'lucide-react'
+import { BookOpen, GraduationCap, Heart, Users } from 'lucide-react'
 
 export default function Footer() {
+  const exploreLinks = [
+    { to: '/teachers', label: 'Find Teachers', icon: Users },
+    { to: '/courses', label: 'Browse Courses', icon: BookOpen },
+    { to: '/about', label: 'About Us', icon: GraduationCap },
+  ]
+
   return (
-    <footer className="relative bg-ink text-parchment overflow-hidden">
-      <div className="h-2 bg-gradient-to-r from-emerald via-teal via-50% via-gold to-purple" />
-      <div className="relative max-w-7xl mx-auto px-6 lg:px-8 py-16">
-        <div className="grid md:grid-cols-4 gap-12">
-          <div className="md:col-span-1">
-            <Link to="/" className="flex items-center gap-3 mb-4">
-              <img src="/logo/bgremovedlogo.png" alt="IlmConnect" className="w-10 h-10 rounded-xl" />
-              <span className="font-display font-extrabold text-xl text-white">
-                Ilm<span className="text-emerald">Connect</span>
+    <footer className="relative overflow-hidden bg-ink text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(255,200,0,0.14),transparent_24rem),radial-gradient(circle_at_88%_10%,rgba(46,158,46,0.16),transparent_28rem)]" />
+      <div className="relative mx-auto max-w-7xl px-6 py-16 lg:px-8">
+        <div className="grid gap-12 lg:grid-cols-[1.1fr_0.7fr_0.7fr_1fr]">
+          <div>
+            <Link to="/" className="flex items-center gap-3">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/8 ring-1 ring-white/10">
+                <img src="/logo/bgremovedlogo.png" alt="IlmConnect" className="h-9 w-9 rounded-xl" />
+              </span>
+              <span className="font-display text-2xl font-black tracking-[-0.04em]">
+                Ilm<span className="text-emerald-light">Connect</span>
               </span>
             </Link>
-            <p className="text-sand text-sm leading-relaxed">
-              Connecting students with qualified Islamic educators worldwide. Learn Quran, Tajweed, and Arabic from the comfort of your home.
+            <p className="mt-5 max-w-sm text-sm font-semibold leading-7 text-white/58">
+              A focused Islamic learning platform for teacher discovery, live classes, recordings, and family dashboards.
             </p>
           </div>
+
           <div>
-            <h4 className="font-display font-extrabold text-white mb-4 text-sm tracking-wide uppercase">Explore</h4>
-            <ul className="space-y-2.5">
-              {[{ to: '/teachers', label: 'Find Teachers', icon: Users }, { to: '/courses', label: 'Browse Courses', icon: BookOpen }, { to: '/about', label: 'About Us', icon: GraduationCap }].map(l => (
-                <li key={l.to}>
-                  <Link to={l.to} className="flex items-center gap-2 text-sand text-sm hover:text-emerald transition-colors">
-                    <l.icon size={14} /> {l.label}
+            <h4 className="text-xs font-black uppercase tracking-[0.22em] text-gold">Explore</h4>
+            <ul className="mt-5 space-y-3">
+              {exploreLinks.map((link) => (
+                <li key={link.to}>
+                  <Link to={link.to} className="flex items-center gap-2 text-sm font-bold text-white/62 transition hover:text-emerald-light">
+                    <link.icon size={15} /> {link.label}
                   </Link>
                 </li>
               ))}
             </ul>
           </div>
+
           <div>
-            <h4 className="font-display font-extrabold text-white mb-4 text-sm tracking-wide uppercase">For Users</h4>
-            <ul className="space-y-2.5">
-              {[{ to: '/signup', label: 'Parents' }, { to: '/signup', label: 'Students' }, { to: '/signup', label: 'Teachers' }].map(r => (
-                <li key={r.label}><Link to={r.to} className="text-sand text-sm hover:text-emerald transition-colors">For {r.label}</Link></li>
+            <h4 className="text-xs font-black uppercase tracking-[0.22em] text-gold">Start</h4>
+            <ul className="mt-5 space-y-3">
+              {['Parents', 'Teachers', 'Students'].map((role) => (
+                <li key={role}><Link to="/signup" className="text-sm font-bold text-white/62 transition hover:text-emerald-light">For {role}</Link></li>
               ))}
             </ul>
           </div>
-          <div className="flex flex-col items-start md:items-end justify-between">
-            <div className="text-right rounded-2xl border border-white/8 bg-white/4 px-5 py-4">
-              <p dir="rtl" lang="ar" className="arabic-quote-soft text-2xl mb-2">اقْرَأْ بِاسْمِ رَبِّكَ الَّذِي خَلَقَ</p>
-              <p className="text-sand/85 text-xs italic font-semibold">"Read in the name of your Lord who created" — Al-'Alaq 96:1</p>
-            </div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur">
+            <p dir="rtl" lang="ar" className="arabic-quote-soft text-3xl">اقْرَأْ بِاسْمِ رَبِّكَ الَّذِي خَلَقَ</p>
+            <p className="mt-3 text-xs font-bold leading-6 text-white/58">"Read in the name of your Lord who created" — Al-'Alaq 96:1</p>
           </div>
         </div>
-        <div className="mt-14 pt-6 border-t-2 border-bark/20 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-sand/60 text-xs font-semibold">&copy; {new Date().getFullYear()} IlmConnect. All rights reserved.</p>
-          <div className="flex items-center gap-1.5 text-sand/50 text-xs font-bold">
-            Built with <Heart size={12} className="text-rose animate-pulse" /> for the Ummah
+
+        <div className="mt-14 flex flex-col gap-4 border-t border-white/10 pt-6 md:flex-row md:items-center md:justify-between">
+          <p className="text-xs font-bold text-white/42">&copy; {new Date().getFullYear()} IlmConnect. All rights reserved.</p>
+          <div className="flex items-center gap-1.5 text-xs font-bold text-white/42">
+            Built with <Heart size={12} className="text-rose" /> for the Ummah
           </div>
         </div>
       </div>
