@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Nunito:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Fraunces:opsz,wght@9..144,600..900&family=Nunito:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -43,6 +43,141 @@ body {
   background-color: var(--color-ivory);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
+}
+
+
+/* ── Dashboard Experience Layer ── */
+.dashboard-root {
+  --font-display: 'Fraunces', 'Nunito', system-ui, sans-serif;
+  --dashboard-accent: var(--color-emerald);
+  --dashboard-accent-soft: rgba(46, 158, 46, 0.1);
+  color-scheme: light;
+  background:
+    radial-gradient(circle at 15% 8%, rgba(255, 200, 0, 0.18), transparent 28rem),
+    radial-gradient(circle at 84% 2%, rgba(46, 158, 46, 0.16), transparent 30rem),
+    linear-gradient(135deg, #f7f7f7 0%, #fbf8ed 46%, #eef8f0 100%);
+}
+.dashboard-root[data-dashboard-role='parent'] {
+  --dashboard-accent: var(--color-teal);
+  --dashboard-accent-soft: rgba(28, 176, 246, 0.1);
+}
+.dashboard-root[data-dashboard-role='student'] {
+  --dashboard-accent: var(--color-gold-muted);
+  --dashboard-accent-soft: rgba(255, 200, 0, 0.14);
+}
+.dashboard-root[data-dashboard-role='admin'] {
+  --font-display: 'JetBrains Mono', 'Nunito', monospace;
+  --dashboard-accent: var(--color-rose);
+  --dashboard-accent-soft: rgba(255, 75, 75, 0.12);
+  color-scheme: dark;
+  background: #0d1117;
+}
+.dashboard-main {
+  position: relative;
+  background:
+    linear-gradient(120deg, rgba(255,255,255,0.32), rgba(255,255,255,0)),
+    radial-gradient(circle at 0% 0%, var(--dashboard-accent-soft), transparent 26rem),
+    radial-gradient(circle at 100% 10%, rgba(255, 200, 0, 0.1), transparent 28rem);
+}
+.dashboard-main::before {
+  pointer-events: none;
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.42;
+  background-image:
+    linear-gradient(rgba(60, 60, 60, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(60, 60, 60, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black, transparent 82%);
+}
+.dashboard-root[data-dashboard-role='admin'] .dashboard-main {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 75, 75, 0.12), transparent 28rem),
+    radial-gradient(circle at 90% 8%, rgba(28, 176, 246, 0.08), transparent 30rem),
+    linear-gradient(180deg, #0d1117 0%, #101522 100%);
+}
+.dashboard-root[data-dashboard-role='admin'] .dashboard-main::before {
+  opacity: 0.28;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.dashboard-main > * {
+  position: relative;
+  z-index: 1;
+}
+.dashboard-page {
+  position: relative;
+}
+.dashboard-hero,
+.dashboard-panel,
+.dashboard-stat-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(229, 229, 229, 0.82);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 24px 70px rgba(60, 60, 60, 0.08);
+  backdrop-filter: blur(18px);
+}
+.dashboard-hero {
+  border-radius: 2rem;
+}
+.dashboard-hero::before {
+  pointer-events: none;
+  content: '';
+  position: absolute;
+  inset: -35% -10% auto auto;
+  width: 28rem;
+  height: 28rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, var(--dashboard-accent-soft), transparent 66%);
+}
+.dashboard-panel,
+.dashboard-stat-card {
+  border-radius: 1.75rem;
+}
+.dashboard-stat-card::after {
+  pointer-events: none;
+  content: '';
+  position: absolute;
+  inset: auto 1rem 1rem auto;
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 999px;
+  background: var(--dashboard-accent-soft);
+  filter: blur(18px);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+.dashboard-stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 30px 80px rgba(60, 60, 60, 0.1);
+}
+.dashboard-stat-card:hover::after {
+  opacity: 1;
+}
+.dashboard-root[data-dashboard-role='admin'] .dashboard-hero,
+.dashboard-root[data-dashboard-role='admin'] .dashboard-panel,
+.dashboard-root[data-dashboard-role='admin'] .dashboard-stat-card {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(22, 27, 39, 0.84);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.32);
+}
+.dashboard-root[data-dashboard-role='admin'] .dashboard-hero h1,
+.dashboard-root[data-dashboard-role='admin'] .dashboard-panel h2,
+.dashboard-root[data-dashboard-role='admin'] .dashboard-stat-card .text-ink {
+  color: #ffffff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-stat-card,
+  .dashboard-stat-card * {
+    transition: none !important;
+  }
+  .dashboard-stat-card:hover {
+    transform: none;
+  }
 }
 
 .arabic-quote {

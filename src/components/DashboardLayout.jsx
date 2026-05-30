@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Outlet, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState } from 'react'
+import { Outlet, Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { AnimatePresence, motion as Motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../lib/auth.jsx'
 import { api, authFetch } from '../lib/api.js'
@@ -14,7 +14,6 @@ import {
   Search,
   Menu,
   X,
-  // Teacher icons
   Sparkles,
   Calendar,
   BookOpen,
@@ -23,13 +22,10 @@ import {
   ImagePlus,
   Wallet,
   Settings,
-  // Parent icons
   Users,
   GraduationCap,
-  // Student icons
   FileVideo,
   UserCircle2,
-  // Admin icons
   Shield,
   BarChart3,
   UserCheck,
@@ -38,7 +34,6 @@ import {
   Video,
 } from 'lucide-react'
 
-/* ─── role tab configs ─── */
 const TEACHER_TABS = [
   { id: 'overview', label: 'Overview', icon: Sparkles },
   { id: 'notifications', label: 'Notifications', icon: Bell },
@@ -72,16 +67,79 @@ const STUDENT_TABS = [
 ]
 
 const ADMIN_TABS = [
-  { id: 'overview',    label: 'Overview',   icon: BarChart3   },
-  { id: 'users',       label: 'Users',      icon: Users       },
-  { id: 'teachers',    label: 'Teachers',   icon: UserCheck   },
-  { id: 'courses',     label: 'Courses',    icon: BookOpen    },
-  { id: 'bookings',    label: 'Bookings',   icon: Calendar    },
-  { id: 'payments',    label: 'Payments',   icon: CreditCard  },
-  { id: 'recordings',  label: 'Recordings', icon: Video       },
-  { id: 'reviews',     label: 'Reviews',    icon: Flag        },
-  { id: 'settings',    label: 'Settings',   icon: Settings    },
+  { id: 'overview', label: 'Overview', icon: BarChart3 },
+  { id: 'users', label: 'Users', icon: Users },
+  { id: 'teachers', label: 'Teachers', icon: UserCheck },
+  { id: 'courses', label: 'Courses', icon: BookOpen },
+  { id: 'bookings', label: 'Bookings', icon: Calendar },
+  { id: 'payments', label: 'Payments', icon: CreditCard },
+  { id: 'recordings', label: 'Recordings', icon: Video },
+  { id: 'reviews', label: 'Reviews', icon: Flag },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ]
+
+const ROLE_THEME = {
+  teacher: {
+    accent: 'text-emerald',
+    activeNav: 'bg-emerald text-white border-emerald-deep shadow-[0_14px_30px_rgba(46,158,46,0.24)]',
+    inactiveNav: 'text-ink-soft hover:bg-emerald/8 hover:text-emerald',
+    badge: 'border-emerald/15 bg-emerald/8 text-emerald',
+    avatar: 'bg-emerald/10 text-emerald',
+    header: 'border-parchment/70 bg-white/88 text-ink',
+    sidebar: 'border-parchment/70 bg-white/92 text-ink',
+    divider: 'border-parchment/70',
+    muted: 'text-bark',
+    userCard: 'bg-ivory/80 text-ink',
+    utilityButton: 'text-bark hover:bg-emerald/8 hover:text-emerald',
+    logoText: 'text-ink',
+    logoAccent: 'text-emerald',
+  },
+  parent: {
+    accent: 'text-teal',
+    activeNav: 'bg-teal text-white border-teal-deep shadow-[0_14px_30px_rgba(28,176,246,0.22)]',
+    inactiveNav: 'text-ink-soft hover:bg-teal/8 hover:text-teal',
+    badge: 'border-teal/15 bg-teal/8 text-teal',
+    avatar: 'bg-teal/10 text-teal',
+    header: 'border-parchment/70 bg-white/88 text-ink',
+    sidebar: 'border-parchment/70 bg-white/92 text-ink',
+    divider: 'border-parchment/70',
+    muted: 'text-bark',
+    userCard: 'bg-ivory/80 text-ink',
+    utilityButton: 'text-bark hover:bg-teal/8 hover:text-teal',
+    logoText: 'text-ink',
+    logoAccent: 'text-teal',
+  },
+  student: {
+    accent: 'text-gold-muted',
+    activeNav: 'bg-gold text-ink border-gold-muted shadow-[0_14px_30px_rgba(255,200,0,0.22)]',
+    inactiveNav: 'text-ink-soft hover:bg-gold/12 hover:text-gold-muted',
+    badge: 'border-gold/25 bg-gold/12 text-gold-muted',
+    avatar: 'bg-gold/15 text-gold-muted',
+    header: 'border-parchment/70 bg-white/88 text-ink',
+    sidebar: 'border-parchment/70 bg-white/92 text-ink',
+    divider: 'border-parchment/70',
+    muted: 'text-bark',
+    userCard: 'bg-ivory/80 text-ink',
+    utilityButton: 'text-bark hover:bg-gold/12 hover:text-gold-muted',
+    logoText: 'text-ink',
+    logoAccent: 'text-gold-muted',
+  },
+  admin: {
+    accent: 'text-rose',
+    activeNav: 'bg-rose/14 text-rose border border-rose/25 shadow-[0_16px_36px_rgba(255,75,75,0.12)]',
+    inactiveNav: 'text-zinc-400 hover:bg-white/5 hover:text-white',
+    badge: 'border border-rose/20 bg-rose/10 text-rose',
+    avatar: 'bg-rose/10 text-rose',
+    header: 'border-white/10 bg-[#0b111b]/90 text-white',
+    sidebar: 'border-white/10 bg-[#0d1117]/95 text-white',
+    divider: 'border-white/10',
+    muted: 'text-zinc-500',
+    userCard: 'bg-white/5 text-white',
+    utilityButton: 'text-zinc-500 hover:bg-white/5 hover:text-white',
+    logoText: 'text-white',
+    logoAccent: 'text-rose',
+  },
+}
 
 function getTabsForRole(role) {
   if (role === 'teacher') return TEACHER_TABS
@@ -99,18 +157,13 @@ function getRoleLabel(role) {
   return 'Dashboard'
 }
 
-function getRoleColor(role) {
-  if (role === 'teacher') return 'emerald'
-  if (role === 'parent') return 'teal'
-  if (role === 'student') return 'purple'
-  if (role === 'admin') return 'rose'
-  return 'emerald'
+function cx(...classes) {
+  return classes.filter(Boolean).join(' ')
 }
 
 export default function DashboardLayout() {
   const { user, token, logout } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -118,20 +171,12 @@ export default function DashboardLayout() {
   const role = user?.role || ''
   const tabs = getTabsForRole(role)
   const roleLabel = getRoleLabel(role)
+  const roleTheme = ROLE_THEME[role] || ROLE_THEME.teacher
+  const activeTab = searchParams.get('tab') || 'overview'
 
-  // ── Active tab: React state is the source of truth, synced with URL ──
-  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'overview')
-
-  // Sync URL → state (e.g. browser back/forward, initial load)
-  useEffect(() => {
-    const urlTab = searchParams.get('tab') || 'overview'
-    setActiveTab(prev => prev !== urlTab ? urlTab : prev)
-  }, [searchParams])
-
-  // Sync state → URL (when user clicks sidebar buttons)
   const handleTabChange = (tabId) => {
-    setActiveTab(tabId)
     setSearchParams({ tab: tabId }, { replace: true })
+    setMobileOpen(false)
   }
 
   const unreadQuery = useQuery({
@@ -141,6 +186,7 @@ export default function DashboardLayout() {
     refetchInterval: 30000,
   })
   const unreadCount = unreadQuery.data?.count || 0
+
   const teacherNotificationsQuery = useQuery({
     queryKey: ['teacherNotificationsBell', user?.id],
     queryFn: () => authFetch(api.teacherNotifications(user.id), token),
@@ -149,244 +195,192 @@ export default function DashboardLayout() {
   })
   const teacherNotificationCount = role === 'teacher' ? (teacherNotificationsQuery.data?.unreadCount || 0) : 0
 
-  useEffect(() => { setMobileOpen(false) }, [activeTab])
   const handleLogout = () => {
     logout()
     navigate('/', { replace: true })
   }
 
   const avatarChar = (user?.full_name || user?.email || 'U').charAt(0).toUpperCase()
+  const activeTabLabel = tabs.find((tab) => tab.id === activeTab)?.label || activeTab
+
+  const renderBadge = (count, colorClass, compactBadge = false) => count > 0 ? (
+    <span className={cx('absolute flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black text-white', colorClass, compactBadge ? '-right-1 -top-1' : 'right-3')}>
+      {count > 99 ? '99+' : count}
+    </span>
+  ) : null
+
+  const renderNavItems = (mobile = false) => (
+    <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-2">
+      {tabs.map((tab) => {
+        const active = activeTab === tab.id
+        const Icon = tab.icon
+        const showMessageBadge = tab.id === 'messages' && unreadCount > 0
+        const showTeacherBellBadge = role === 'teacher' && tab.id === 'notifications' && teacherNotificationCount > 0
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => handleTabChange(tab.id)}
+            title={!mobile && collapsed ? tab.label : undefined}
+            className={cx(
+              'group relative flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition-all focus:outline-none focus:ring-4 focus:ring-emerald/10',
+              active ? roleTheme.activeNav : roleTheme.inactiveNav,
+              !mobile && collapsed ? 'justify-center px-0' : '',
+              mobile ? 'py-3' : ''
+            )}
+          >
+            <Icon size={18} className="shrink-0" />
+            {(mobile || !collapsed) && <span>{tab.label}</span>}
+            {showMessageBadge ? renderBadge(unreadCount, 'bg-rose', !mobile && collapsed) : null}
+            {showTeacherBellBadge ? renderBadge(teacherNotificationCount, 'bg-gold', !mobile && collapsed) : null}
+          </button>
+        )
+      })}
+    </nav>
+  )
 
   return (
-    <div className="flex h-screen overflow-hidden bg-ivory">
-      {/* ── Desktop Sidebar ── */}
-      <aside
-        className={`hidden lg:flex flex-col border-r-2 border-parchment bg-white transition-all duration-300 ${collapsed ? 'w-[72px]' : 'w-[260px]'}`}
-      >
-        {/* Logo */}
-        <div className={`flex items-center border-b-2 border-parchment h-16 px-4 ${collapsed ? 'justify-center' : 'gap-3'}`}>
-          <img src="/logo/bgremovedlogo.png" alt="IlmConnect" className="w-9 h-9 rounded-xl shadow-md shadow-emerald/20 flex-shrink-0" />
+    <div data-dashboard-role={role || 'default'} className="dashboard-root flex h-screen overflow-hidden">
+      <aside className={cx('hidden flex-col border-r backdrop-blur-xl transition-all duration-300 lg:flex', roleTheme.sidebar, collapsed ? 'w-[76px]' : 'w-[276px]')}>
+        <div className={cx('flex h-16 items-center border-b px-4', roleTheme.divider, collapsed ? 'justify-center' : 'gap-3')}>
+          <img src="/logo/bgremovedlogo.png" alt="IlmConnect" className="h-9 w-9 shrink-0 rounded-xl shadow-md shadow-emerald/20" />
           {!collapsed && (
-            <span className="font-display font-extrabold text-lg text-ink tracking-tight">
-              Ilm<span className="text-emerald">Connect</span>
+            <span className={cx('font-display text-lg font-black tracking-tight', roleTheme.logoText)}>
+              Ilm<span className={roleTheme.logoAccent}>Connect</span>
             </span>
           )}
         </div>
 
-        {/* Role badge */}
-        <div className={`px-4 pt-5 pb-2 ${collapsed ? 'px-2 text-center' : ''}`}>
+        <div className={cx('px-4 pb-2 pt-5', collapsed ? 'px-2 text-center' : '')}>
           {!collapsed && (
-            <div className="inline-flex items-center gap-2 rounded-xl bg-emerald/8 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald">
+            <div className={cx('inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.2em]', roleTheme.badge)}>
               <Shield size={12} />
               {roleLabel}
             </div>
           )}
         </div>
 
-        {/* Nav items */}
-        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          {tabs.map((tab) => {
-            const active = activeTab === tab.id
-            const Icon = tab.icon
-            const showMessageBadge = tab.id === 'messages' && unreadCount > 0
-            const showTeacherBellBadge = role === 'teacher' && tab.id === 'notifications' && teacherNotificationCount > 0
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                title={collapsed ? tab.label : undefined}
-                className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-all ${
-                  active
-                    ? 'bg-emerald text-white border-b-[3px] border-emerald-deep shadow-md'
-                    : 'text-ink-soft hover:bg-emerald/5 hover:text-emerald'
-                } ${collapsed ? 'justify-center px-0' : ''}`}
-              >
-                <Icon size={18} className="flex-shrink-0" />
-                {!collapsed && <span>{tab.label}</span>}
-                {showMessageBadge && (
-                  <span className={`absolute ${collapsed ? '-top-1 -right-1' : 'right-3'} flex h-5 min-w-5 items-center justify-center rounded-full bg-rose px-1 text-[10px] font-bold text-white`}>
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
-                )}
-                {showTeacherBellBadge && (
-                  <span className={`absolute ${collapsed ? '-top-1 -right-1' : 'right-3'} flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-bold text-white`}>
-                    {teacherNotificationCount > 99 ? '99+' : teacherNotificationCount}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </nav>
+        {renderNavItems()}
 
-        {/* Collapse toggle + user */}
-        <div className="border-t-2 border-parchment p-3 space-y-2">
+        <div className={cx('space-y-2 border-t p-3', roleTheme.divider)}>
           <button
+            type="button"
             onClick={() => setCollapsed(!collapsed)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl py-2 text-xs font-medium text-bark hover:bg-ivory hover:text-emerald transition"
+            className={cx('flex w-full items-center justify-center gap-2 rounded-2xl py-2 text-xs font-bold transition', roleTheme.utilityButton)}
           >
             {collapsed ? <ChevronRight size={16} /> : <><ChevronLeft size={16} /><span>Collapse</span></>}
           </button>
-          <div className={`flex items-center gap-3 rounded-xl bg-ivory/80 p-2.5 ${collapsed ? 'justify-center' : ''}`}>
+          <div className={cx('flex items-center gap-3 rounded-2xl p-2.5', roleTheme.userCard, collapsed ? 'justify-center' : '')}>
             {user?.avatar_url ? (
-              <img src={user.avatar_url} alt="" className="h-8 w-8 rounded-lg object-cover flex-shrink-0" />
+              <img src={user.avatar_url} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />
             ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald/10 text-xs font-bold text-emerald flex-shrink-0">{avatarChar}</div>
+              <div className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-black', roleTheme.avatar)}>{avatarChar}</div>
             )}
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-ink">{user?.full_name || 'User'}</div>
-                <div className="truncate text-[11px] text-bark">{user?.email}</div>
+                <div className="truncate text-sm font-black">{user?.full_name || 'User'}</div>
+                <div className={cx('truncate text-[11px]', roleTheme.muted)}>{user?.email}</div>
               </div>
             )}
           </div>
         </div>
       </aside>
 
-      {/* ── Main area ── */}
-      <div className="flex flex-1 flex-col min-w-0">
-        {/* Top header */}
-        <header className="flex items-center justify-between border-b-2 border-parchment bg-white h-16 px-4 lg:px-8 flex-shrink-0">
-          {/* Mobile menu button */}
-          <button onClick={() => setMobileOpen(true)} className="lg:hidden flex items-center justify-center w-10 h-10 rounded-xl hover:bg-ivory transition">
-            <Menu size={20} className="text-ink" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className={cx('flex h-16 shrink-0 items-center justify-between border-b px-4 backdrop-blur-xl lg:px-8', roleTheme.header)}>
+          <button type="button" onClick={() => setMobileOpen(true)} className={cx('flex h-10 w-10 items-center justify-center rounded-2xl transition lg:hidden', roleTheme.utilityButton)}>
+            <Menu size={20} />
           </button>
 
-          {/* Breadcrumb */}
-          <div className="hidden lg:flex items-center gap-2 text-sm">
-            <Link to="/" className="text-bark hover:text-emerald transition">Home</Link>
-            <span className="text-sand">/</span>
-            <span className="font-semibold text-ink capitalize">{activeTab}</span>
+          <div className="hidden items-center gap-2 text-sm lg:flex">
+            <Link to="/" className={cx('rounded-lg px-1 transition', roleTheme.utilityButton)}>Home</Link>
+            <span className={roleTheme.muted}>/</span>
+            <span className="font-black capitalize">{activeTabLabel}</span>
           </div>
 
-          {/* Mobile title */}
-          <div className="lg:hidden flex items-center gap-2">
-            <img src="/logo/bgremovedlogo.png" alt="" className="w-8 h-8 rounded-lg" />
-            <span className="font-display font-bold text-ink">Ilm<span className="text-emerald">Connect</span></span>
+          <div className="flex items-center gap-2 lg:hidden">
+            <img src="/logo/bgremovedlogo.png" alt="" className="h-8 w-8 rounded-lg" />
+            <span className={cx('font-display font-black', roleTheme.logoText)}>Ilm<span className={roleTheme.logoAccent}>Connect</span></span>
           </div>
 
-          {/* Right side */}
           <div className="flex items-center gap-2">
             {role === 'teacher' && (
-              <button
-                onClick={() => handleTabChange('notifications')}
-                className="relative flex items-center justify-center w-10 h-10 rounded-xl hover:bg-ivory transition text-bark hover:text-emerald"
-              >
+              <button type="button" onClick={() => handleTabChange('notifications')} className={cx('relative flex h-10 w-10 items-center justify-center rounded-2xl transition', roleTheme.utilityButton)}>
                 <Bell size={18} />
                 {teacherNotificationCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[9px] font-bold text-white">{teacherNotificationCount > 9 ? '9+' : teacherNotificationCount}</span>
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[9px] font-black text-white">{teacherNotificationCount > 9 ? '9+' : teacherNotificationCount}</span>
                 )}
               </button>
             )}
-            <button
-              onClick={() => handleTabChange('messages')}
-              className="relative flex items-center justify-center w-10 h-10 rounded-xl hover:bg-ivory transition text-bark hover:text-emerald"
-            >
+            <button type="button" onClick={() => handleTabChange('messages')} className={cx('relative flex h-10 w-10 items-center justify-center rounded-2xl transition', roleTheme.utilityButton)}>
               <MessageCircle size={18} />
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose px-1 text-[9px] font-bold text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose px-1 text-[9px] font-black text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>
               )}
             </button>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-bark hover:bg-rose/8 hover:text-rose transition"
-            >
+            <button type="button" onClick={handleLogout} className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-bold text-rose transition hover:bg-rose/8">
               <LogOut size={16} />
               <span className="hidden sm:inline">Sign Out</span>
             </button>
           </div>
         </header>
 
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="dashboard-main flex-1 overflow-y-auto">
           <Outlet context={{ activeTab, setActiveTab: handleTabChange }} />
         </main>
       </div>
 
-      {/* ── Mobile sidebar overlay ── */}
       <AnimatePresence>
         {mobileOpen && (
           <>
-            <motion.div
+            <Motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm lg:hidden"
+              className="fixed inset-0 z-40 bg-ink/45 backdrop-blur-sm lg:hidden"
               onClick={() => setMobileOpen(false)}
             />
-            <motion.aside
-              initial={{ x: -280 }}
+            <Motion.aside
+              initial={{ x: -300 }}
               animate={{ x: 0 }}
-              exit={{ x: -280 }}
+              exit={{ x: -300 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="fixed inset-y-0 left-0 z-50 w-[280px] bg-white shadow-2xl lg:hidden flex flex-col"
+              className={cx('fixed inset-y-0 left-0 z-50 flex w-[300px] flex-col border-r shadow-2xl lg:hidden', roleTheme.sidebar)}
             >
-              {/* Mobile sidebar header */}
-              <div className="flex items-center justify-between h-16 px-4 border-b-2 border-parchment">
+              <div className={cx('flex h-16 items-center justify-between border-b px-4', roleTheme.divider)}>
                 <div className="flex items-center gap-3">
-                  <img src="/logo/bgremovedlogo.png" alt="IlmConnect" className="w-9 h-9 rounded-xl" />
-                  <span className="font-display font-bold text-lg text-ink">Ilm<span className="text-emerald">Connect</span></span>
+                  <img src="/logo/bgremovedlogo.png" alt="IlmConnect" className="h-9 w-9 rounded-xl" />
+                  <span className={cx('font-display text-lg font-black', roleTheme.logoText)}>Ilm<span className={roleTheme.logoAccent}>Connect</span></span>
                 </div>
-                <button onClick={() => setMobileOpen(false)} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-ivory"><X size={18} /></button>
+                <button type="button" onClick={() => setMobileOpen(false)} className={cx('flex h-9 w-9 items-center justify-center rounded-xl transition', roleTheme.utilityButton)}><X size={18} /></button>
               </div>
 
-              <div className="px-4 pt-4 pb-2">
-                <div className="inline-flex items-center gap-2 rounded-xl bg-emerald/8 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald">
+              <div className="px-4 pb-2 pt-4">
+                <div className={cx('inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.2em]', roleTheme.badge)}>
                   <Shield size={12} />
                   {roleLabel}
                 </div>
               </div>
 
-              <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-                {tabs.map((tab) => {
-                  const active = activeTab === tab.id
-                  const Icon = tab.icon
-                  const showMessageBadge = tab.id === 'messages' && unreadCount > 0
-                  const showTeacherBellBadge = role === 'teacher' && tab.id === 'notifications' && teacherNotificationCount > 0
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => { handleTabChange(tab.id); setMobileOpen(false) }}
-                      className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition-all ${
-                        active
-                          ? 'bg-emerald text-white border-b-4 border-emerald-deep shadow-md'
-                          : 'text-ink-soft hover:bg-ivory hover:text-emerald'
-                      }`}
-                    >
-                      <Icon size={18} />
-                      <span>{tab.label}</span>
-                      {showMessageBadge && (
-                        <span className="absolute right-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose px-1 text-[10px] font-bold text-white">
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </span>
-                      )}
-                      {showTeacherBellBadge && (
-                        <span className="absolute right-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-bold text-white">
-                          {teacherNotificationCount > 99 ? '99+' : teacherNotificationCount}
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-              </nav>
+              {renderNavItems(true)}
 
-              {/* Mobile user info */}
-              <div className="border-t-2 border-parchment p-3">
-                <div className="flex items-center gap-3 rounded-xl bg-ivory/80 p-3">
+              <div className={cx('border-t p-3', roleTheme.divider)}>
+                <div className={cx('flex items-center gap-3 rounded-2xl p-3', roleTheme.userCard)}>
                   {user?.avatar_url ? (
-                    <img src={user.avatar_url} alt="" className="h-9 w-9 rounded-lg object-cover" />
+                    <img src={user.avatar_url} alt="" className="h-10 w-10 rounded-xl object-cover" />
                   ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald/10 text-sm font-bold text-emerald">{avatarChar}</div>
+                    <div className={cx('flex h-10 w-10 items-center justify-center rounded-xl text-sm font-black', roleTheme.avatar)}>{avatarChar}</div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-ink">{user?.full_name || 'User'}</div>
-                    <div className="truncate text-[11px] text-bark">{user?.email}</div>
+                    <div className="truncate text-sm font-black">{user?.full_name || 'User'}</div>
+                    <div className={cx('truncate text-[11px]', roleTheme.muted)}>{user?.email}</div>
                   </div>
                 </div>
-                <button onClick={handleLogout} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-rose hover:bg-rose/8 transition">
+                <button type="button" onClick={handleLogout} className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-bold text-rose transition hover:bg-rose/8">
                   <LogOut size={16} /> Sign Out
                 </button>
               </div>
-            </motion.aside>
+            </Motion.aside>
           </>
         )}
       </AnimatePresence>
