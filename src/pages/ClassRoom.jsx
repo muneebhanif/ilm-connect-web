@@ -84,6 +84,7 @@ export default function ClassRoom() {
   const endedRef = useRef(false)
   const pipRef = useRef(null)
   const chatBottomRef = useRef(null)
+  const playedRemotesRef = useRef(new Set())
 
   const canScreenShare = isDesktopScreenShareAvailable()
   const isLocalFocused = focusedUid === 'local'
@@ -108,6 +109,11 @@ export default function ClassRoom() {
       setFocusedUid(remoteParticipants[0].uid)
     }
   }, [joined, remoteParticipants, isLocalFocused])
+
+  // Clear played-remotes tracking when focus changes (DOM element IDs shift)
+  useEffect(() => {
+    if (playedRemotesRef.current) playedRemotesRef.current.clear()
+  }, [focusedUid])
 
   // If focused remote leaves, fall back
   useEffect(() => {
@@ -225,7 +231,8 @@ export default function ClassRoom() {
     return () => clearTimeout(t)
   }, [joined, screenSharing, isLocalFocused])
 
-  // Play remote videos
+  // Play remote videos — stable version that avoids re-calling .play()
+  // We use a ref to track which (uid+elementId) combos have already been played
   useEffect(() => {
     if (!joined) return
     const t = setTimeout(() => {
@@ -235,12 +242,15 @@ export default function ClassRoom() {
         if (!ru?.videoTrack) return
         const elId = String(p.uid) === String(focusedUid) ? 'main-player' : `remote-player-${p.uid}`
         const el = document.getElementById(elId)
-        if (el) {
-          ru.videoTrack.play(el, { fit: 'contain' })
-          setTimeout(() => applyVideoFit(el, 'contain'), 30)
-        }
+        if (!el) return
+        // Only call .play() if we haven't already played this track into this element
+        const playKey = `${p.uid}_${elId}`
+        if (playedRemotesRef.current.has(playKey)) return
+        playedRemotesRef.current.add(playKey)
+        ru.videoTrack.play(el, { fit: 'contain' })
+        setTimeout(() => applyVideoFit(el, 'contain'), 30)
       })
-    }, 100)
+    }, 150)
     return () => clearTimeout(t)
   }, [remoteParticipants, joined, focusedUid])
 
@@ -331,6 +341,19 @@ export default function ClassRoom() {
             try { remoteUser.audioTrack?.setVolume?.(80) } catch {}
             remoteUser.audioTrack?.play()
           }
+          if (mediaType === 'video' && remoteUser.videoTrack) {
+            // Play video immediately after subscribe — don't wait for useEffect
+            setTimeout(() => {
+              const elId = 'main-player'
+              const el = document.getElementById(elId)
+              if (el && remoteUser.videoTrack) {
+                const playKey = `${remoteUser.uid}_${elId}`
+                playedRemotesRef.current.add(playKey)
+                remoteUser.videoTrack.play(el, { fit: 'contain' })
+                setTimeout(() => applyVideoFit(el, 'contain'), 50)
+              }
+            }, 200)
+          }
         } catch (e) { console.warn('Subscribe error:', e) }
       }
       client.on('user-joined', (ru) => upsertRemoteParticipant(ru.uid, { hasVideo: Boolean(ru.hasVideo), hasAudio: Boolean(ru.hasAudio) }))
@@ -345,9 +368,15 @@ export default function ClassRoom() {
       })
       client.on('stream-message', (_uid, data) => {
         try {
-          const decoded = typeof data === 'string' ? data : new TextDecoder().decode(data instanceof Uint8Array ? data : new Uint8Array(data))
+          let decoded = ''
+          if (typeof data === 'string') decoded = data
+          else if (data instanceof Uint8Array) decoded = new TextDecoder().decode(data)
+          else if (data instanceof ArrayBuffer) decoded = new TextDecoder().decode(new Uint8Array(data))
+          else if (data?.buffer instanceof ArrayBuffer) decoded = new TextDecoder().decode(new Uint8Array(data.buffer))
+          else decoded = String(data ?? '')
+          if (!decoded) return
           const msg = JSON.parse(decoded)
-          if (msg.type === 'chat') setChatMessages((p) => [...p, { id: Date.now() + Math.random(), senderName: msg.senderName, text: msg.text, at: msg.at, mine: false }])
+          if (msg.type === 'chat') setChatMessages((p) => [...p, { id: Date.now() + Math.random(), senderName: msg.senderName || 'Participant', text: msg.text, at: msg.at, mine: false }])
         } catch {}
       })
 
