@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Mic, MicOff, Video, VideoOff, Phone, PhoneOff,
-  MessageCircle, X, Send, Users, Clock, RotateCcw, ScreenShare, ScreenShareOff,
+  MessageCircle, X, Send, Clock, RotateCcw, ScreenShare, ScreenShareOff,
   User, GraduationCap, BookOpen,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth.jsx'
@@ -85,6 +85,7 @@ export default function ClassRoom() {
   const pipRef = useRef(null)
   const chatBottomRef = useRef(null)
   const playedRemotesRef = useRef(new Set())
+  const focusedUidRef = useRef('local')
 
   const canScreenShare = isDesktopScreenShareAvailable()
   const isLocalFocused = focusedUid === 'local'
@@ -92,6 +93,36 @@ export default function ClassRoom() {
 
   // ← Only this one line was added (pure UI logic)
   const isOneToOne = remoteParticipants.length <= 1
+
+  useEffect(() => {
+    focusedUidRef.current = focusedUid
+  }, [focusedUid])
+
+  const playRemoteTrack = useCallback((uid, attempt = 0) => {
+    const remoteUid = Number(uid) || uid
+    const client = clientRef.current
+    const ru = client?.remoteUsers?.find((u) => String(u.uid) === String(remoteUid))
+    const elId = String(focusedUidRef.current) === String(remoteUid) ? 'main-player' : `remote-player-${remoteUid}`
+    const el = document.getElementById(elId)
+
+    if (!ru?.videoTrack || !el) {
+      if (attempt < 8) window.setTimeout(() => playRemoteTrack(remoteUid, attempt + 1), 100)
+      return
+    }
+
+    const playKey = `${remoteUid}_${elId}`
+    const hasRenderedVideo = !!el.querySelector('.agora_video_player, video, canvas')
+    if (playedRemotesRef.current.has(playKey) && hasRenderedVideo) return
+
+    try {
+      ru.videoTrack.play(el, { fit: 'contain' })
+      playedRemotesRef.current.add(playKey)
+      window.setTimeout(() => applyVideoFit(el, 'contain'), 50)
+    } catch (e) {
+      if (attempt < 8) window.setTimeout(() => playRemoteTrack(remoteUid, attempt + 1), 100)
+      else console.warn('Remote video play failed:', e)
+    }
+  }, [])
 
   // ... (ALL your original useEffects, functions, cleanup, joinClass, etc. are 100% unchanged)
 
@@ -231,28 +262,16 @@ export default function ClassRoom() {
     return () => clearTimeout(t)
   }, [joined, screenSharing, isLocalFocused])
 
-  // Play remote videos — stable version that avoids re-calling .play()
-  // We use a ref to track which (uid+elementId) combos have already been played
+  // Play remote videos after subscription and after the target DOM node exists.
   useEffect(() => {
     if (!joined) return
     const t = setTimeout(() => {
       remoteParticipants.forEach((p) => {
-        if (!p.hasVideo) return
-        const ru = clientRef.current?.remoteUsers?.find((u) => String(u.uid) === String(p.uid))
-        if (!ru?.videoTrack) return
-        const elId = String(p.uid) === String(focusedUid) ? 'main-player' : `remote-player-${p.uid}`
-        const el = document.getElementById(elId)
-        if (!el) return
-        // Only call .play() if we haven't already played this track into this element
-        const playKey = `${p.uid}_${elId}`
-        if (playedRemotesRef.current.has(playKey)) return
-        playedRemotesRef.current.add(playKey)
-        ru.videoTrack.play(el, { fit: 'contain' })
-        setTimeout(() => applyVideoFit(el, 'contain'), 30)
+        if (p.hasVideo) playRemoteTrack(p.uid)
       })
-    }, 150)
+    }, 120)
     return () => clearTimeout(t)
-  }, [remoteParticipants, joined, focusedUid])
+  }, [remoteParticipants, joined, focusedUid, playRemoteTrack])
 
   const stopScreenShare = useCallback(async () => {
     const client = clientRef.current
@@ -332,28 +351,16 @@ export default function ClassRoom() {
       const handlePublished = async (remoteUser, mediaType) => {
         try {
           if (client.connectionState !== 'CONNECTED') return
-          upsertRemoteParticipant(remoteUser.uid, {
-            hasVideo: mediaType === 'video' ? true : Boolean(remoteUser.hasVideo),
-            hasAudio: mediaType === 'audio' ? true : Boolean(remoteUser.hasAudio),
-          })
           await client.subscribe(remoteUser, mediaType)
           if (mediaType === 'audio') {
             try { remoteUser.audioTrack?.setVolume?.(80) } catch {}
             remoteUser.audioTrack?.play()
           }
-          if (mediaType === 'video' && remoteUser.videoTrack) {
-            // Play video immediately after subscribe — don't wait for useEffect
-            setTimeout(() => {
-              const elId = 'main-player'
-              const el = document.getElementById(elId)
-              if (el && remoteUser.videoTrack) {
-                const playKey = `${remoteUser.uid}_${elId}`
-                playedRemotesRef.current.add(playKey)
-                remoteUser.videoTrack.play(el, { fit: 'contain' })
-                setTimeout(() => applyVideoFit(el, 'contain'), 50)
-              }
-            }, 200)
-          }
+          upsertRemoteParticipant(remoteUser.uid, {
+            hasVideo: mediaType === 'video' ? true : Boolean(remoteUser.hasVideo),
+            hasAudio: mediaType === 'audio' ? true : Boolean(remoteUser.hasAudio),
+          })
+          if (mediaType === 'video') window.setTimeout(() => playRemoteTrack(remoteUser.uid), 80)
         } catch (e) { console.warn('Subscribe error:', e) }
       }
       client.on('user-joined', (ru) => upsertRemoteParticipant(ru.uid, { hasVideo: Boolean(ru.hasVideo), hasAudio: Boolean(ru.hasAudio) }))
@@ -404,13 +411,25 @@ export default function ClassRoom() {
     finally { setJoining(false) }
   }
 
-  const endOrLeave = async () => {
-    if (user?.role === 'teacher' && !endedRef.current) {
+  const dashboardPath = user?.role === 'teacher' ? '/dashboard/teacher' : user?.role === 'student' ? '/dashboard/student' : '/dashboard/parent'
+
+  const leaveClass = async () => {
+    await cleanup()
+    navigate(dashboardPath)
+  }
+
+  const endClassForEveryone = async () => {
+    if (user?.role !== 'teacher') {
+      await leaveClass()
+      return
+    }
+    if (!window.confirm('End this class for everyone? Students will be removed from the live session.')) return
+    if (!endedRef.current) {
       endedRef.current = true
       try { await authFetch(api.endClass(id), token, { method: 'POST' }) } catch {}
     }
     await cleanup()
-    navigate(user?.role === 'teacher' ? '/dashboard/teacher' : user?.role === 'student' ? '/dashboard/student' : '/dashboard/parent')
+    navigate(dashboardPath)
   }
 
   const goBack = async () => { await cleanup(); navigate(-1) }
@@ -629,7 +648,7 @@ export default function ClassRoom() {
 
       {/* Bottom Controls */}
       <div className="shrink-0 bg-black/90 backdrop-blur-lg border-t border-white/10 px-4 py-4 z-40">
-        <div className="flex items-center justify-center gap-6 text-3xl">
+        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-3xl">
           <button onClick={toggleMic} className={`flex flex-col items-center group ${micOn ? 'text-white' : 'text-red-400'}`}>
             <div className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all active:scale-95">
               {micOn ? <Mic size={28} /> : <MicOff size={28} />}
@@ -660,15 +679,30 @@ export default function ClassRoom() {
             <span className="text-xs mt-1 text-slate-400">Chat</span>
           </button>
 
-          <button onClick={endOrLeave} className="bg-red-600 hover:bg-red-700 w-14 h-14 rounded-3xl flex items-center justify-center text-3xl active:scale-95 transition-all">
-            {user?.role === 'teacher' ? <Phone size={28} className="rotate-[135deg]" /> : <PhoneOff size={28} />}
+          <button onClick={leaveClass} className="flex flex-col items-center group text-white">
+            <div className="w-14 h-14 flex items-center justify-center rounded-2xl hover:bg-white/10 transition-all active:scale-95">
+              <PhoneOff size={28} />
+            </div>
+            <span className="text-xs mt-1 text-slate-400">Leave</span>
           </button>
+
+          {user?.role === 'teacher' && (
+            <button onClick={endClassForEveryone} className="flex flex-col items-center group text-red-400">
+              <div className="bg-red-600 hover:bg-red-700 w-14 h-14 rounded-3xl flex items-center justify-center text-white active:scale-95 transition-all shadow-lg shadow-red-600/20">
+                <Phone size={28} className="rotate-[135deg]" />
+              </div>
+              <span className="text-xs mt-1 text-red-300">End</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Chat Panel */}
       {chatOpen && (
-        <div className="absolute right-0 top-0 bottom-0 w-full sm:w-80 bg-slate-900/95 backdrop-blur-md border-l border-slate-800 flex flex-col z-30">
+        <div
+          style={{ bottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }}
+          className="absolute right-0 top-14 w-full sm:w-80 bg-slate-900/95 backdrop-blur-md border-l border-slate-800 flex flex-col z-50"
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
             <span className="font-semibold text-sm">Chat</span>
             <button onClick={() => setChatOpen(false)} className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors">
