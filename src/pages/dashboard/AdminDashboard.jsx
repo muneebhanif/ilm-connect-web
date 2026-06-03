@@ -8,6 +8,7 @@ import {
   Clock, ExternalLink, RefreshCw, Database, Activity, X, Check,
   AlertCircle,
 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useAuth } from '../../lib/auth.jsx'
 import { authFetch } from '../../lib/api.js'
 
@@ -21,6 +22,7 @@ const adminApi = {
   reviewTeacher: (id)     => `${API}/api/admin/teachers/${id}/review`,
   verifyTeacher: (id)     => `${API}/api/admin/teachers/${id}/verify`,
   courses:       ()       => `${API}/api/admin/courses`,
+  updateCourseStatus:(id) => `${API}/api/admin/courses/${id}/status`,
   reviews:       ()       => `${API}/api/admin/reviews`,
   deleteReview:  (id)     => `${API}/api/admin/reviews/${id}`,
   bookings:      (s)      => `${API}/api/admin/bookings${s ? `?status=${s}` : ''}`,
@@ -44,6 +46,7 @@ const PILL = {
   completed:'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30',
   ready:'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30',
   pending:'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30',
+  pending_review:'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30',
   processing:'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30',
   upcoming:'bg-blue-500/15 text-blue-400 ring-1 ring-blue-500/30',
   rejected:'bg-red-500/15 text-red-400 ring-1 ring-red-500/30',
@@ -58,8 +61,9 @@ const PILL = {
   admin:'bg-red-500/15 text-red-400 ring-1 ring-red-500/30',
 }
 function Pill({ children }) {
-  const k = String(children||'').toLowerCase()
-  return <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest font-mono ${PILL[k]||'bg-zinc-500/15 text-zinc-400 ring-1 ring-zinc-500/30'}`}>{children}</span>
+  const label = String(children || '')
+  const k = label.toLowerCase().replace(/\s+/g, '_')
+  return <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest font-mono ${PILL[k]||'bg-zinc-500/15 text-zinc-400 ring-1 ring-zinc-500/30'}`}>{label.replace(/_/g, ' ')}</span>
 }
 
 /* ─── KPI card ─── */
@@ -182,6 +186,15 @@ export default function AdminDashboard() {
   const deleteUserMut = useMutation({
     mutationFn: (id) => authFetch(adminApi.deleteUser(id),token,{method:'DELETE'}),
     onSuccess: () => { qc.invalidateQueries({queryKey:['adminUsers']}); qc.invalidateQueries({queryKey:['adminStats']}); setDeleteUserModal(null) },
+  })
+  const courseStatusMut = useMutation({
+    mutationFn: ({ id, status }) => authFetch(adminApi.updateCourseStatus(id), token, { method: 'PUT', body: JSON.stringify({ status }) }),
+    onSuccess: (_, v) => {
+      toast.success(v.status === 'published' ? 'Course approved' : 'Course sent back to draft')
+      qc.invalidateQueries({ queryKey: ['adminCourses'] })
+      qc.invalidateQueries({ queryKey: ['adminStats'] })
+    },
+    onError: (err) => toast.error(err?.message || 'Failed to update course'),
   })
 
   const stats   = statsQ.data   || {}
@@ -389,15 +402,17 @@ export default function AdminDashboard() {
   /* ── COURSES ── */
   if (activeTab === 'courses') return (
     <div className="space-y-6 px-6 py-8 lg:px-10">
-      <div><h1 className="font-display text-3xl font-black tracking-tight text-white">Courses</h1><p className="mt-1 text-sm text-zinc-600">All courses published on the platform</p></div>
+      <div><h1 className="font-display text-3xl font-black tracking-tight text-white">Courses</h1><p className="mt-1 text-sm text-zinc-600">Review teacher-submitted courses before they appear publicly</p></div>
       <Card>
         <Table loading={coursesQ.isLoading} empty="No courses found" rows={coursesQ.data?.courses||[]} cols={[
           {key:'title',      label:'Title',   render:c=><span className="font-semibold text-zinc-200 max-w-[200px] truncate block">{c.title}</span>},
-          {key:'teacher',    label:'Teacher', render:c=><span className="text-zinc-500 text-xs">{c.teachers?.profiles?.full_name||'—'}</span>},
+          {key:'teacher',    label:'Teacher', render:c=><span className="text-zinc-500 text-xs">{c.profiles?.full_name||c.teacher_name||'—'}</span>},
           {key:'subject',    label:'Subject', render:c=><span className="font-mono text-xs text-zinc-600">{c.subject||'—'}</span>},
-          {key:'price',      label:'Price',   render:c=><span className="font-mono text-xs text-amber-400 tabular-nums">${c.price||0}</span>},
-          {key:'status',     label:'Status',  render:c=><Pill>{c.is_published?'published':'draft'}</Pill>},
+          {key:'lessons',    label:'Lessons', render:c=><span className="font-mono text-xs text-zinc-500 tabular-nums">{c.total_lessons||0}</span>},
+          {key:'price',      label:'Price',   render:c=><span className="font-mono text-xs text-amber-400 tabular-nums">{c.is_free ? 'Free' : fmtMoney(c.price||0)}</span>},
+          {key:'status',     label:'Status',  render:c=><Pill>{c.status||'draft'}</Pill>},
           {key:'created_at', label:'Created', render:c=><span className="font-mono text-xs text-zinc-600">{fmtDate(c.created_at)}</span>},
+          {key:'actions',    label:'Actions', render:c=><div className="flex items-center gap-2">{c.status!=='published'&&<button onClick={()=>courseStatusMut.mutate({id:c.id,status:'published'})} disabled={courseStatusMut.isPending} className="flex items-center gap-1.5 rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition disabled:opacity-50"><CheckCircle2 size={13}/> Approve</button>}{c.status!=='draft'&&<button onClick={()=>courseStatusMut.mutate({id:c.id,status:'draft'})} disabled={courseStatusMut.isPending} className="flex items-center gap-1.5 rounded-xl border border-white/6 px-3 py-2 text-xs font-bold text-zinc-500 hover:bg-white/5 hover:text-zinc-300 transition disabled:opacity-50"><Clock size={13}/> Send back</button>}</div>},
         ]}/>
       </Card>
     </div>

@@ -148,7 +148,22 @@ function mapErr(msg = '') {
   return msg || 'Something went wrong.'
 }
 
+function getCourseStatusMeta(status = 'draft') {
+  const normalized = String(status || 'draft').toLowerCase()
+  if (normalized === 'published') return { label: 'Published', tone: 'emerald' }
+  if (normalized === 'pending_review') return { label: 'In review', tone: 'gold' }
+  if (normalized === 'archived') return { label: 'Archived', tone: 'ink' }
+  return { label: 'Draft', tone: 'ink' }
+}
 
+function getCourseReviewChecklist(course = {}, lessonCount) {
+  const lessonsReady = Number(lessonCount ?? course.total_lessons ?? 0) > 0
+  return [
+    { label: 'Course details saved', done: Boolean(course.id && course.title && course.subject) },
+    { label: 'Cover image uploaded', done: Boolean(course.thumbnail_url) },
+    { label: 'At least one video lesson uploaded', done: lessonsReady },
+  ]
+}
 
 const PAYOUT_METHODS_WEB = [
   { key: 'payoneer', label: 'Payoneer' },
@@ -287,10 +302,11 @@ export default function TeacherDashboard() {
   const uploadThumb = useMutation({ mutationFn: async ({ courseId, file }) => { const img = await fileToBase64(file); return authFetch(api.uploadCourseThumbnail(user.id, courseId), token, { method: 'POST', body: JSON.stringify({ image: img, fileExtension: getFileExtension(file.name) }) }) }, onSuccess: () => qc.invalidateQueries({ queryKey: ['teacherCourses', user.id] }) })
   const createCourse = useMutation({ mutationFn: (p) => authFetch(api.createCourse(), token, { method: 'POST', body: JSON.stringify(p) }), onError: (err) => toast.error(mapErr(err?.message)) })
   const updateCourse = useMutation({ mutationFn: ({ courseId, payload }) => authFetch(api.updateCourse(courseId), token, { method: 'PUT', body: JSON.stringify(payload) }), onSuccess: () => { toast.success('Course updated'); qc.invalidateQueries({ queryKey: ['teacherCourses', user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
+  const submitCourseForReview = useMutation({ mutationFn: (course) => authFetch(api.updateCourse(course.id), token, { method: 'PUT', body: JSON.stringify({ teacher_id: user.id, status: 'pending_review' }) }), onSuccess: () => { toast.success('Course submitted for admin review'); qc.invalidateQueries({ queryKey: ['teacherCourses', user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
   const deleteCourse = useMutation({ mutationFn: (id) => authFetch(api.deleteCourse(id), token, { method: 'DELETE', body: JSON.stringify({ teacher_id: user.id }) }), onSuccess: () => { toast.success('Course deleted'); qc.invalidateQueries({ queryKey: ['teacherCourses', user.id] }); setSelectedCourseId(null) }, onError: (err) => toast.error(mapErr(err?.message)) })
-  const createLesson = useMutation({ mutationFn: (p) => authFetch(api.createLesson(selectedCourseId), token, { method: 'POST', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Lesson added'); setLessonForm({ title: '', description: '', content_url: '', is_preview: false }); qc.invalidateQueries({ queryKey: ['courseLessons', selectedCourseId, user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
-  const uploadLesson = useMutation({ mutationFn: async ({ file, payload }) => { const ext = getFileExtension(file.name).toLowerCase(); if (!LESSON_VIDEO_EXTENSIONS.includes(ext)) throw new Error('Only video files allowed'); if (file.size / 1048576 > 50) throw new Error('Video too large (max 50MB)'); const content = await fileToBase64(file); return authFetch(api.uploadLesson(selectedCourseId), token, { method: 'POST', body: JSON.stringify({ ...payload, content, fileExtension: ext, fileName: file.name, content_type: 'video' }) }) }, onSuccess: () => { toast.success('Lesson uploaded'); setLessonForm({ title: '', description: '', content_url: '', is_preview: false }); setLessonFile(null); qc.invalidateQueries({ queryKey: ['courseLessons', selectedCourseId, user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
-  const deleteLesson = useMutation({ mutationFn: ({ lessonId }) => authFetch(api.deleteLesson(selectedCourseId, lessonId), token, { method: 'DELETE', body: JSON.stringify({ teacher_id: user.id }) }), onSuccess: () => { toast.success('Lesson deleted'); qc.invalidateQueries({ queryKey: ['courseLessons', selectedCourseId, user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
+  const createLesson = useMutation({ mutationFn: (p) => authFetch(api.createLesson(selectedCourseId), token, { method: 'POST', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Lesson added'); setLessonForm({ title: '', description: '', content_url: '', is_preview: false }); qc.invalidateQueries({ queryKey: ['courseLessons', selectedCourseId, user.id] }); qc.invalidateQueries({ queryKey: ['teacherCourses', user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
+  const uploadLesson = useMutation({ mutationFn: async ({ file, payload }) => { const ext = getFileExtension(file.name).toLowerCase(); if (!LESSON_VIDEO_EXTENSIONS.includes(ext)) throw new Error('Only video files allowed'); if (file.size / 1048576 > 50) throw new Error('Video too large (max 50MB)'); const content = await fileToBase64(file); return authFetch(api.uploadLesson(selectedCourseId), token, { method: 'POST', body: JSON.stringify({ ...payload, content, fileExtension: ext, fileName: file.name, content_type: 'video' }) }) }, onSuccess: () => { toast.success('Lesson uploaded'); setLessonForm({ title: '', description: '', content_url: '', is_preview: false }); setLessonFile(null); qc.invalidateQueries({ queryKey: ['courseLessons', selectedCourseId, user.id] }); qc.invalidateQueries({ queryKey: ['teacherCourses', user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
+  const deleteLesson = useMutation({ mutationFn: ({ lessonId }) => authFetch(api.deleteLesson(selectedCourseId, lessonId), token, { method: 'DELETE', body: JSON.stringify({ teacher_id: user.id }) }), onSuccess: () => { toast.success('Lesson deleted'); qc.invalidateQueries({ queryKey: ['courseLessons', selectedCourseId, user.id] }); qc.invalidateQueries({ queryKey: ['teacherCourses', user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
   const uploadDoc = useMutation({ mutationFn: async ({ file, documentType }) => { const doc = await fileToBase64(file); return authFetch(api.uploadTeacherDocument(user.id), token, { method: 'POST', body: JSON.stringify({ document: doc, documentType, fileExtension: getFileExtension(file.name), fileName: file.name }) }) }, onSuccess: () => { toast.success('Document uploaded'); qc.invalidateQueries({ queryKey: ['teacherDocuments', user.id] }) }, onError: (err) => toast.error(err?.message || 'Upload failed') })
   const replaceDoc = useMutation({ mutationFn: async ({ file, documentType }) => { const doc = await fileToBase64(file); return authFetch(api.replaceTeacherDocument(user.id, documentType), token, { method: 'PATCH', body: JSON.stringify({ document: doc, documentType, fileExtension: getFileExtension(file.name), fileName: file.name }) }) }, onSuccess: () => { toast.success('Document replaced — sent for re-approval'); qc.invalidateQueries({ queryKey: ['teacherDocuments', user.id] }) }, onError: (err) => toast.error(err?.message || 'Replace failed') })
   const uploadPortfolio = useMutation({ mutationFn: async ({ file, mediaType }) => { const enc = await fileToBase64(file); return authFetch(api.uploadTeacherPortfolioMedia(user.id), token, { method: 'POST', body: JSON.stringify({ file: enc, mediaType, fileExtension: getFileExtension(file.name) }) }) }, onSuccess: () => { toast.success('Portfolio media added'); qc.invalidateQueries({ queryKey: ['teacherPublicProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Upload failed') })
@@ -323,6 +339,14 @@ export default function TeacherDashboard() {
     const cid = courseForm.id || r?.course?.id || r?.id
     if (cid && courseThumbnailFile) await uploadThumb.mutateAsync({ courseId: cid, file: courseThumbnailFile })
     resetCourseForm(); qc.invalidateQueries({ queryKey: ['teacherCourses', user.id] })
+  }
+  const submitReview = (course, lessonCount) => {
+    const missing = getCourseReviewChecklist(course, lessonCount).filter((item) => !item.done)
+    if (missing.length > 0) {
+      toast.error(missing[0].label)
+      return
+    }
+    submitCourseForReview.mutate(course)
   }
 
   const fileInputClass = "block w-full rounded-2xl border border-parchment/60 bg-ivory px-4 py-3 text-sm text-bark file:mr-3 file:rounded-lg file:border-0 file:bg-emerald/10 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-emerald"
@@ -529,7 +553,51 @@ export default function TeacherDashboard() {
           </form>
         </SectionCard>
         <SectionCard title="Your courses">
-          {coursesQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-44" /> : courses.length === 0 ? <EmptyState icon={BookOpen} title="No courses yet" text="Create your first course." /> : <div className="space-y-4">{courses.map(c => <div key={c.id} className="overflow-hidden rounded-[24px] border border-parchment/50 bg-white"><img src={getCourseThumbnail(c)} alt={c.title} className="h-36 w-full object-cover" /><div className="p-5"><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><div className="font-semibold text-ink">{c.title}</div><div className="mt-1 text-sm text-bark">{c.subject || 'General'} • {c.level || 'beginner'}</div><div className="mt-1 text-xs text-bark">{c.total_lessons || 0} lessons • {c.is_free ? 'Free' : `$${c.price}`}</div></div><div className="flex flex-wrap gap-2"><button onClick={() => { setSelectedCourseId(c.id); setActiveTab('lessons') }} className="rounded-xl border border-parchment px-3 py-2 text-sm font-semibold text-ink-soft hover:border-emerald/20">Lessons</button><button onClick={() => { setCourseForm({ id: c.id, title: c.title || '', description: c.description || '', subject: c.subject || '', level: c.level || 'beginner', price: String(c.price || ''), is_free: !!c.is_free, total_lessons: String(c.total_lessons || ''), thumbnail_url: c.thumbnail_url || '' }); setCourseThumbnailPreview(c.thumbnail_url || ''); setCourseThumbnailFile(null) }} className="rounded-xl bg-emerald/10 px-3 py-2 text-sm font-semibold text-emerald">Edit</button><button onClick={() => deleteCourse.mutate(c.id)} className="rounded-xl bg-rose/10 px-3 py-2 text-sm font-semibold text-rose">Delete</button></div></div></div></div>)}</div>}
+          {coursesQ.isLoading ? <SectionRowsSkeleton rows={3} itemClassName="h-44" /> : courses.length === 0 ? <EmptyState icon={BookOpen} title="No courses yet" text="Create your first course." /> : (
+            <div className="space-y-4">
+              {courses.map((c) => {
+                const courseLessonCount = selectedCourseId === c.id && !lessonsQ.isLoading ? Math.max(lessons.length, Number(c.total_lessons || 0)) : Number(c.total_lessons || 0)
+                const statusMeta = getCourseStatusMeta(c.status)
+                const checklist = getCourseReviewChecklist(c, courseLessonCount)
+                const readyForReview = checklist.every((item) => item.done)
+                const lockedForReview = ['pending_review', 'published'].includes(String(c.status || '').toLowerCase())
+
+                return (
+                  <div key={c.id} className="overflow-hidden rounded-[24px] border border-parchment/50 bg-white">
+                    <img src={getCourseThumbnail(c)} alt={c.title} className="h-36 w-full object-cover" />
+                    <div className="p-5">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-semibold text-ink">{c.title}</div>
+                            <StatusPill tone={statusMeta.tone}>{statusMeta.label}</StatusPill>
+                          </div>
+                          <div className="mt-1 text-sm text-bark">{c.subject || 'General'} • {c.level || 'beginner'}</div>
+                          <div className="mt-1 text-xs text-bark">{courseLessonCount || 0} lessons • {c.is_free ? 'Free' : `$${c.price}`}</div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button onClick={() => { setSelectedCourseId(c.id); setActiveTab('lessons') }} className="rounded-xl border border-parchment px-3 py-2 text-sm font-semibold text-ink-soft hover:border-emerald/20">Lessons</button>
+                          <button onClick={() => { setCourseForm({ id: c.id, title: c.title || '', description: c.description || '', subject: c.subject || '', level: c.level || 'beginner', price: String(c.price || ''), is_free: !!c.is_free, total_lessons: String(courseLessonCount || ''), thumbnail_url: c.thumbnail_url || '' }); setCourseThumbnailPreview(c.thumbnail_url || ''); setCourseThumbnailFile(null) }} className="rounded-xl bg-emerald/10 px-3 py-2 text-sm font-semibold text-emerald">Edit</button>
+                          {!lockedForReview && <button onClick={() => submitReview(c, courseLessonCount)} disabled={submitCourseForReview.isPending} className={`rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45 ${readyForReview ? '' : 'opacity-65'}`}>Submit for review</button>}
+                          <button onClick={() => deleteCourse.mutate(c.id)} className="rounded-xl bg-rose/10 px-3 py-2 text-sm font-semibold text-rose">Delete</button>
+                        </div>
+                      </div>
+                      {!lockedForReview && (
+                        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                          {checklist.map((item) => (
+                            <div key={item.label} className={`flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold ${item.done ? 'border-emerald/20 bg-emerald/8 text-emerald' : 'border-parchment bg-ivory/60 text-bark'}`}>
+                              {item.done ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                              <span>{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </SectionCard>
       </div>
     </PageHeader>

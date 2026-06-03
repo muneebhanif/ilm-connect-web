@@ -32,6 +32,19 @@ function saveUser(user) {
   else localStorage.removeItem(USER_KEY)
 }
 
+function buildAuthFallbackUser(userId, authUser = {}) {
+  const userMetadata = authUser?.user_metadata || {}
+  const appMetadata = authUser?.app_metadata || {}
+
+  return {
+    id: userId || authUser?.id || '',
+    full_name: userMetadata.full_name || userMetadata.fullName || authUser?.email?.split('@')[0] || '',
+    email: authUser?.email || '',
+    role: userMetadata.role || appMetadata.role || '',
+    avatar_url: userMetadata.avatar_url || '',
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [session, setSession] = useState(null)
@@ -44,21 +57,22 @@ export function AuthProvider({ children }) {
     saveUser(null)
   }, [])
 
-  const fetchProfile = useCallback(async (userId) => {
-    const data = await apiFetch(api.profile(userId))
+  const fetchProfile = useCallback(async (userId, authUser) => {
+    const fallback = buildAuthFallbackUser(userId, authUser)
+    const data = await apiFetch(api.profile(userId)).catch(() => ({ profile: null }))
     const profile = data?.profile || {}
     return {
       ...profile,
-      id: profile.id || userId,
-      full_name: profile.full_name || '',
-      email: profile.email || '',
-      role: profile.role || '',
-      avatar_url: profile.avatar_url || '',
+      id: profile.id || fallback.id,
+      full_name: profile.full_name || fallback.full_name,
+      email: profile.email || fallback.email,
+      role: profile.role || fallback.role,
+      avatar_url: profile.avatar_url || fallback.avatar_url,
     }
   }, [])
 
-  const applySession = useCallback(async (sess, userId) => {
-    const profile = await fetchProfile(userId)
+  const applySession = useCallback(async (sess, userId, authUser) => {
+    const profile = await fetchProfile(userId, authUser)
     setSession(sess)
     setUser(profile)
     saveSession(sess)
@@ -77,7 +91,7 @@ export function AuthProvider({ children }) {
     if (!nextSession?.access_token || !userId) {
       throw new Error('Unable to refresh session')
     }
-    await applySession(nextSession, userId)
+    await applySession(nextSession, userId, data?.user)
     return nextSession
   }, [applySession])
 
@@ -100,7 +114,7 @@ export function AuthProvider({ children }) {
       })
       .then(async (data) => {
         if (data.valid && data.user?.id) {
-          await applySession(stored, data.user.id)
+          await applySession(stored, data.user.id, data.user)
         } else {
           throw new Error('invalid-session')
         }
@@ -131,7 +145,7 @@ export function AuthProvider({ children }) {
     if (!sess?.access_token || !userId) {
       throw new Error('Login failed')
     }
-    return applySession(sess, userId)
+    return applySession(sess, userId, data?.user)
   }
 
   const signup = async (role, body) => {
