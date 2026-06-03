@@ -25,7 +25,7 @@ async function createOptimizedLocalTracks(AgoraRTC) {
   const videoTrack = await AgoraRTC.createCameraVideoTrack({
     encoderConfig: '720p_2', optimizationMode: 'detail',
   })
-  try { audioTrack.setVolume?.(85) } catch {}
+  try { audioTrack.setVolume?.(85) } catch (e) { console.warn('Audio volume setup failed:', e) }
   return [audioTrack, videoTrack]
 }
 
@@ -85,6 +85,7 @@ export default function ClassRoom() {
   const pipRef = useRef(null)
   const chatBottomRef = useRef(null)
   const playedRemotesRef = useRef(new Set())
+  const containerTrackKeysRef = useRef(new Map())
   const focusedUidRef = useRef('local')
 
   const canScreenShare = isDesktopScreenShareAvailable()
@@ -98,6 +99,45 @@ export default function ClassRoom() {
     focusedUidRef.current = focusedUid
   }, [focusedUid])
 
+  const logAgora = useCallback((event, details = {}) => {
+    console.log(`[Agora Web] ${event}`, {
+      classId: id,
+      focusedUid: focusedUidRef.current,
+      ...details,
+    })
+  }, [id])
+
+  const playTrackIntoContainer = useCallback((track, elementId, trackKey, options = {}, attempt = 0) => {
+    const el = document.getElementById(elementId)
+    if (!track || !el) {
+      if (attempt < 30) {
+        window.setTimeout(() => playTrackIntoContainer(track, elementId, trackKey, options, attempt + 1), 100)
+      } else {
+        logAgora('video track play failed', { elementId, trackKey, reason: !track ? 'missing track' : 'missing container' })
+      }
+      return false
+    }
+
+    try {
+      const previousKey = containerTrackKeysRef.current.get(elementId)
+      if (previousKey !== trackKey) {
+        el.innerHTML = ''
+        containerTrackKeysRef.current.set(elementId, trackKey)
+      }
+      track.play(el, { fit: 'contain', ...options })
+      window.setTimeout(() => applyVideoFit(el, 'contain'), 50)
+      logAgora('video track play success', { elementId, trackKey })
+      return true
+    } catch (e) {
+      if (attempt < 30) {
+        window.setTimeout(() => playTrackIntoContainer(track, elementId, trackKey, options, attempt + 1), 100)
+      } else {
+        logAgora('video track play failure', { elementId, trackKey, error: e?.message || String(e) })
+      }
+      return false
+    }
+  }, [logAgora])
+
   const playRemoteTrack = useCallback((uid, attempt = 0) => {
     const remoteUid = Number(uid) || uid
     const client = clientRef.current
@@ -106,7 +146,8 @@ export default function ClassRoom() {
     const el = document.getElementById(elId)
 
     if (!ru?.videoTrack || !el) {
-      if (attempt < 8) window.setTimeout(() => playRemoteTrack(remoteUid, attempt + 1), 100)
+      if (attempt < 30) window.setTimeout(() => playRemoteTrack(remoteUid, attempt + 1), 100)
+      else logAgora('remote video play failed', { remoteUid, elementId: elId, hasTrack: Boolean(ru?.videoTrack), hasContainer: Boolean(el) })
       return
     }
 
@@ -114,15 +155,10 @@ export default function ClassRoom() {
     const hasRenderedVideo = !!el.querySelector('.agora_video_player, video, canvas')
     if (playedRemotesRef.current.has(playKey) && hasRenderedVideo) return
 
-    try {
-      ru.videoTrack.play(el, { fit: 'contain' })
+    if (playTrackIntoContainer(ru.videoTrack, elId, `remote-${remoteUid}`, {}, attempt)) {
       playedRemotesRef.current.add(playKey)
-      window.setTimeout(() => applyVideoFit(el, 'contain'), 50)
-    } catch (e) {
-      if (attempt < 8) window.setTimeout(() => playRemoteTrack(remoteUid, attempt + 1), 100)
-      else console.warn('Remote video play failed:', e)
     }
-  }, [])
+  }, [logAgora, playTrackIntoContainer])
 
   // ... (ALL your original useEffects, functions, cleanup, joinClass, etc. are 100% unchanged)
 
@@ -236,9 +272,11 @@ export default function ClassRoom() {
       if (localTracksRef.current.screenTrack) { localTracksRef.current.screenTrack.stop(); localTracksRef.current.screenTrack.close() }
       localTracksRef.current = {}
       if (clientRef.current) { clientRef.current.removeAllListeners?.(); await clientRef.current.leave() }
-    } catch {}
+    } catch (e) { console.warn('Classroom cleanup warning:', e) }
     clientRef.current = null
     dataStreamRef.current = null
+    playedRemotesRef.current.clear()
+    containerTrackKeysRef.current.clear()
     setJoined(false)
     setScreenSharing(false)
     setRemoteParticipants([])
@@ -253,14 +291,10 @@ export default function ClassRoom() {
     const t = setTimeout(() => {
       const vt = localTracksRef.current.screenTrack || localTracksRef.current.videoTrack
       const elId = isLocalFocused ? 'main-player' : 'local-player'
-      const el = document.getElementById(elId)
-      if (vt && el) {
-        vt.play(el, { fit: 'contain', mirror: !screenSharing })
-        setTimeout(() => applyVideoFit(el, 'contain'), 30)
-      }
+      if (vt) playTrackIntoContainer(vt, elId, screenSharing ? 'local-screen' : 'local-camera', { mirror: !screenSharing })
     }, 100)
     return () => clearTimeout(t)
-  }, [joined, screenSharing, isLocalFocused])
+  }, [joined, screenSharing, isLocalFocused, playTrackIntoContainer])
 
   // Play remote videos after subscription and after the target DOM node exists.
   useEffect(() => {
@@ -278,18 +312,18 @@ export default function ClassRoom() {
     const screenTrack = localTracksRef.current.screenTrack
     const cameraTrack = localTracksRef.current.videoTrack
     if (!client || !screenTrack) return
-    try { await client.unpublish(screenTrack) } catch {}
-    try { screenTrack.stop(); screenTrack.close() } catch {}
+    try { await client.unpublish(screenTrack) } catch (e) { console.warn('Screen unpublish failed:', e) }
+    try { screenTrack.stop(); screenTrack.close() } catch (e) { console.warn('Screen track close failed:', e) }
     localTracksRef.current.screenTrack = null
     setScreenSharing(false)
     const localEl = document.getElementById('local-player')
     if (cameraTrack && cameraOn) {
       try {
         await client.publish(cameraTrack)
-        if (localEl) { cameraTrack.play(localEl, { fit: 'contain', mirror: true }); setTimeout(() => applyVideoFit(localEl, 'contain'), 30) }
-      } catch {}
+        if (localEl) playTrackIntoContainer(cameraTrack, 'local-player', 'local-camera', { mirror: true })
+      } catch (e) { console.warn('Camera republish failed:', e) }
     } else if (localEl) { localEl.innerHTML = '' }
-  }, [cameraOn])
+  }, [cameraOn, playTrackIntoContainer])
 
   const startScreenShare = useCallback(async () => {
     const AgoraRTC = AgoraRef.current
@@ -300,18 +334,17 @@ export default function ClassRoom() {
       const created = await AgoraRTC.createScreenVideoTrack({ encoderConfig: '1080p_1', optimizationMode: 'detail' })
       const screenTrack = Array.isArray(created) ? created[0] : created
       if (!screenTrack) throw new Error('Screen sharing unavailable')
-      try { if (cameraTrack) await client.unpublish(cameraTrack) } catch {}
+      try { if (cameraTrack) await client.unpublish(cameraTrack) } catch (e) { console.warn('Camera unpublish for screen share failed:', e) }
       localTracksRef.current.screenTrack = screenTrack
       screenTrack.on?.('track-ended', () => { void stopScreenShare() })
       await client.publish(screenTrack)
       setScreenSharing(true)
-      const localEl = document.getElementById('local-player')
-      if (localEl) { screenTrack.play(localEl, { fit: 'contain', mirror: false }); setTimeout(() => applyVideoFit(localEl, 'contain'), 30) }
+      playTrackIntoContainer(screenTrack, 'local-player', 'local-screen', { mirror: false })
     } catch (e) {
       console.error('Screen share failed:', e)
       await stopScreenShare()
     }
-  }, [canScreenShare, screenSharing, stopScreenShare])
+  }, [canScreenShare, screenSharing, stopScreenShare, playTrackIntoContainer])
 
   const upsertRemoteParticipant = (uid, patch = {}) => {
     const n = Number(uid) || uid
@@ -336,24 +369,38 @@ export default function ClassRoom() {
       const tokenData = await authFetch(api.agoraToken(id, user.id, role, numericAgoraUid), token)
       if (!tokenData?.token) throw new Error('Failed to get Agora token')
       const { token: agoraToken, appId, channel, agoraUid } = tokenData
+      const joinUid = typeof agoraUid === 'number' ? agoraUid : numericAgoraUid
+
+      logAgora('token received', {
+        channelName: channel,
+        localUid: joinUid,
+        tokenUid: tokenData.uid,
+        tokenAgoraUid: agoraUid,
+        role,
+        appId,
+        expiresAt: tokenData.expiresAt,
+      })
 
       const AgoraModule = await import('agora-rtc-sdk-ng')
       const AgoraRTC = AgoraModule.default || AgoraModule
       AgoraRef.current = AgoraRTC
-      try { AgoraRTC.setLogLevel?.(4) } catch {}
+      try { AgoraRTC.setLogLevel?.(4) } catch (e) { console.warn('Agora log-level setup failed:', e) }
 
       const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
       clientRef.current = client
-      const joinUid = typeof agoraUid === 'number' ? agoraUid : numericAgoraUid
-      await client.join(appId, String(channel), agoraToken, joinUid)
-      joinedRef.current = true
 
-      const handlePublished = async (remoteUser, mediaType) => {
+      const handlePublished = async (remoteUser, mediaType, attempt = 0) => {
         try {
-          if (client.connectionState !== 'CONNECTED') return
+          logAgora('user-published event', { remoteUid: remoteUser.uid, mediaType, hasVideo: remoteUser.hasVideo, hasAudio: remoteUser.hasAudio })
+          if (client.connectionState !== 'CONNECTED') {
+            logAgora('subscribe skipped: client not connected', { remoteUid: remoteUser.uid, mediaType, connectionState: client.connectionState })
+            if (attempt < 20) window.setTimeout(() => void handlePublished(remoteUser, mediaType, attempt + 1), 150)
+            return
+          }
           await client.subscribe(remoteUser, mediaType)
+          logAgora('successful subscribe', { remoteUid: remoteUser.uid, mediaType })
           if (mediaType === 'audio') {
-            try { remoteUser.audioTrack?.setVolume?.(80) } catch {}
+            try { remoteUser.audioTrack?.setVolume?.(80) } catch (e) { console.warn('Remote audio volume setup failed:', e) }
             remoteUser.audioTrack?.play()
           }
           upsertRemoteParticipant(remoteUser.uid, {
@@ -361,17 +408,33 @@ export default function ClassRoom() {
             hasAudio: mediaType === 'audio' ? true : Boolean(remoteUser.hasAudio),
           })
           if (mediaType === 'video') window.setTimeout(() => playRemoteTrack(remoteUser.uid), 80)
-        } catch (e) { console.warn('Subscribe error:', e) }
+        } catch (e) {
+          console.warn('Subscribe error:', e)
+          if (attempt < 20) window.setTimeout(() => void handlePublished(remoteUser, mediaType, attempt + 1), 150)
+        }
       }
-      client.on('user-joined', (ru) => upsertRemoteParticipant(ru.uid, { hasVideo: Boolean(ru.hasVideo), hasAudio: Boolean(ru.hasAudio) }))
+      client.on('user-joined', (ru) => {
+        logAgora('user-joined event', { remoteUid: ru.uid, hasVideo: ru.hasVideo, hasAudio: ru.hasAudio })
+        upsertRemoteParticipant(ru.uid, { hasVideo: Boolean(ru.hasVideo), hasAudio: Boolean(ru.hasAudio) })
+      })
       client.on('user-published', handlePublished)
       client.on('user-unpublished', (ru, mt) => {
+        logAgora('user-unpublished event', { remoteUid: ru.uid, mediaType: mt, hasVideo: ru.hasVideo, hasAudio: ru.hasAudio })
         if (mt === 'video') upsertRemoteParticipant(ru.uid, { hasVideo: false, hasAudio: Boolean(ru.hasAudio) })
         if (mt === 'audio') upsertRemoteParticipant(ru.uid, { hasAudio: false, hasVideo: Boolean(ru.hasVideo) })
       })
-      client.on('user-left', (ru) => removeRemoteParticipant(ru.uid))
+      client.on('user-left', (ru) => {
+        logAgora('user-left event', { remoteUid: ru.uid })
+        playedRemotesRef.current.forEach((key) => {
+          if (String(key).startsWith(`${ru.uid}_`)) playedRemotesRef.current.delete(key)
+        })
+        removeRemoteParticipant(ru.uid)
+      })
       client.on('token-privilege-will-expire', async () => {
-        try { const r = await authFetch(api.agoraToken(id, user.id, role, joinUid), token); if (r?.token) await client.renewToken(r.token) } catch {}
+        try { const r = await authFetch(api.agoraToken(id, user.id, role, joinUid), token); if (r?.token) await client.renewToken(r.token) } catch (e) { console.warn('Token renewal failed:', e) }
+      })
+      client.on('token-privilege-did-expire', async () => {
+        try { const r = await authFetch(api.agoraToken(id, user.id, role, joinUid), token); if (r?.token) await client.renewToken(r.token) } catch (e) { console.warn('Expired token renewal failed:', e) }
       })
       client.on('stream-message', (_uid, data) => {
         try {
@@ -384,10 +447,16 @@ export default function ClassRoom() {
           if (!decoded) return
           const msg = JSON.parse(decoded)
           if (msg.type === 'chat') setChatMessages((p) => [...p, { id: Date.now() + Math.random(), senderName: msg.senderName || 'Participant', text: msg.text, at: msg.at, mine: false }])
-        } catch {}
+        } catch (e) { console.warn('Stream message parse failed:', e) }
       })
 
+      logAgora('joining channel', { channelName: channel, localUid: joinUid, role })
+      await client.join(appId, String(channel), agoraToken, joinUid)
+      joinedRef.current = true
+      logAgora('joined channel', { channelName: channel, localUid: joinUid, connectionState: client.connectionState })
+
       for (const ru of client.remoteUsers || []) {
+        logAgora('existing remote after join', { remoteUid: ru.uid, hasVideo: ru.hasVideo, hasAudio: ru.hasAudio })
         upsertRemoteParticipant(ru.uid, { hasVideo: Boolean(ru.hasVideo), hasAudio: Boolean(ru.hasAudio) })
         if (ru.hasVideo) await handlePublished(ru, 'video')
         if (ru.hasAudio) await handlePublished(ru, 'audio')
@@ -397,15 +466,19 @@ export default function ClassRoom() {
         const [at, vt] = await createOptimizedLocalTracks(AgoraRTC)
         localTracksRef.current = { audioTrack: at, videoTrack: vt }
         await client.publish([at, vt])
+        logAgora('local tracks published', { localUid: joinUid, audio: true, video: true })
         setMicOn(true); setCameraOn(true)
-      } catch { setMicOn(false); setCameraOn(false) }
+      } catch (mediaErr) {
+        logAgora('local publish failed', { error: mediaErr?.message || String(mediaErr) })
+        setMicOn(false); setCameraOn(false)
+      }
 
       for (const ru of client.remoteUsers || []) {
         if (ru.hasVideo) await handlePublished(ru, 'video')
         if (ru.hasAudio) await handlePublished(ru, 'audio')
       }
 
-      try { dataStreamRef.current = await client.createDataStream({ ordered: true, reliable: true }) } catch {}
+      try { dataStreamRef.current = await client.createDataStream({ ordered: true, reliable: true }) } catch (e) { console.warn('Data stream setup failed:', e) }
       setJoined(true)
     } catch (e) { setError(e?.message || 'Failed to join class'); await cleanup() }
     finally { setJoining(false) }
@@ -426,7 +499,7 @@ export default function ClassRoom() {
     if (!window.confirm('End this class for everyone? Students will be removed from the live session.')) return
     if (!endedRef.current) {
       endedRef.current = true
-      try { await authFetch(api.endClass(id), token, { method: 'POST' }) } catch {}
+      try { await authFetch(api.endClass(id), token, { method: 'POST' }) } catch (e) { console.warn('End class request failed:', e) }
     }
     await cleanup()
     navigate(dashboardPath)
@@ -445,7 +518,7 @@ export default function ClassRoom() {
       await t.setEnabled(!cameraOn); setCameraOn((v) => !v)
       if (!cameraOn) {
         const el = document.getElementById(isLocalFocused ? 'main-player' : 'local-player')
-        if (el) { t.play(el, { fit: 'contain', mirror: true }); setTimeout(() => applyVideoFit(el, 'contain'), 30) }
+        if (el) playTrackIntoContainer(t, isLocalFocused ? 'main-player' : 'local-player', 'local-camera', { mirror: true })
       }
     }
   }
@@ -463,7 +536,7 @@ export default function ClassRoom() {
       try {
         const payload = JSON.stringify({ type: 'chat', senderName, text, at: now })
         await client.sendStreamMessage(dataStreamRef.current, new TextEncoder().encode(payload))
-      } catch {}
+      } catch (e) { console.warn('Send chat failed:', e) }
     }
   }
 
