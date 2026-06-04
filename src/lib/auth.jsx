@@ -57,9 +57,11 @@ export function AuthProvider({ children }) {
     saveUser(null)
   }, [])
 
-  const fetchProfile = useCallback(async (userId, authUser) => {
+  const fetchProfile = useCallback(async (userId, authUser, accessToken) => {
     const fallback = buildAuthFallbackUser(userId, authUser)
-    const data = await apiFetch(api.profile(userId)).catch(() => ({ profile: null }))
+    const data = await apiFetch(api.profile(userId), accessToken ? {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    } : undefined).catch(() => ({ profile: null }))
     const profile = data?.profile || {}
     return {
       ...profile,
@@ -72,7 +74,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const applySession = useCallback(async (sess, userId, authUser) => {
-    const profile = await fetchProfile(userId, authUser)
+    const profile = await fetchProfile(userId, authUser, sess?.access_token)
     setSession(sess)
     setUser(profile)
     saveSession(sess)
