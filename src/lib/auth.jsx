@@ -65,7 +65,7 @@ export function AuthProvider({ children }) {
     const profile = data?.profile || {}
     return {
       ...profile,
-      id: profile.id || fallback.id,
+      id: fallback.id || profile.id,
       full_name: profile.full_name || fallback.full_name,
       email: profile.email || fallback.email,
       role: profile.role || fallback.role,

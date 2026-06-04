@@ -25,7 +25,7 @@ function ProtectedRoute({ children, roles }) {
   const { user, loading } = useAuth()
   if (loading) return <AppShellSkeleton />
   if (!user) return <Navigate to="/login" replace />
-  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
+  if (roles && !roles.includes(user.role)) return <Navigate to="/dashboard" replace />
   return children
 }
 
@@ -37,7 +37,16 @@ function DashboardRedirect() {
   if (user.role === 'teacher') return <Navigate to="/dashboard/teacher" replace />
   if (user.role === 'student') return <Navigate to="/dashboard/student" replace />
   if (user.role === 'admin') return <Navigate to="/dashboard/admin" replace />
-  return <Navigate to="/" replace />
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-ivory px-6">
+      <div className="max-w-md rounded-2xl border border-parchment bg-white p-6 text-center shadow-sm">
+        <h1 className="font-display text-2xl font-black text-ink">Account role not found</h1>
+        <p className="mt-2 text-sm leading-relaxed text-bark">
+          Your session is valid, but this account does not have a dashboard role loaded. Make sure the matching Supabase profile row has role set to admin, teacher, parent, or student.
+        </p>
+      </div>
+    </div>
+  )
 }
 
 export default function App() {
