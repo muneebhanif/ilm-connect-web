@@ -5,6 +5,12 @@ const AuthContext = createContext(null)
 
 const STORAGE_KEY = 'ilmconnect_session'
 const USER_KEY = 'ilmconnect_user'
+const VALID_ROLES = new Set(['admin', 'teacher', 'parent', 'student'])
+
+function normalizeRole(role) {
+  const normalized = String(role || '').trim().toLowerCase()
+  return VALID_ROLES.has(normalized) ? normalized : ''
+}
 
 function loadSession() {
   try {
@@ -40,7 +46,7 @@ function buildAuthFallbackUser(userId, authUser = {}) {
     id: userId || authUser?.id || '',
     full_name: userMetadata.full_name || userMetadata.fullName || authUser?.email?.split('@')[0] || '',
     email: authUser?.email || '',
-    role: userMetadata.role || appMetadata.role || '',
+    role: normalizeRole(userMetadata.role || appMetadata.role),
     avatar_url: userMetadata.avatar_url || '',
   }
 }
@@ -68,7 +74,7 @@ export function AuthProvider({ children }) {
       id: fallback.id || profile.id,
       full_name: profile.full_name || fallback.full_name,
       email: profile.email || fallback.email,
-      role: profile.role || fallback.role,
+      role: normalizeRole(profile.role || fallback.role),
       avatar_url: profile.avatar_url || fallback.avatar_url,
     }
   }, [])
