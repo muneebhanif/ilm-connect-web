@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { DateTime } from 'luxon'
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
-  Clock3,
   CreditCard,
   ShieldCheck,
   Sparkles,
@@ -19,7 +18,7 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../lib/auth.jsx'
 import { api, apiFetch, authFetch, normalizeTeacherProfileResponse } from '../lib/api.js'
 import { happyMomArt, learningLiveClassArt } from '../lib/artwork'
-import { DashboardShell, SectionCard, EmptyState, StatusPill, ActionButton } from '../components/dashboard-ui.jsx'
+import { DashboardShell, SectionCard, EmptyState, ActionButton } from '../components/dashboard-ui.jsx'
 import { BookingPageSkeleton } from '../components/skeletons.jsx'
 
 const stripePromise = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
@@ -78,7 +77,7 @@ function mapBookingErrorMessage(message = '') {
   return message
 }
 
-function PaymentStep({ clientSecret, bookingLabel, onPaid, isSubmitting }) {
+function PaymentStep({ bookingLabel, onPaid, isSubmitting }) {
   const stripe = useStripe()
   const elements = useElements()
   const [error, setError] = useState('')
@@ -120,6 +119,7 @@ function PaymentStep({ clientSecret, bookingLabel, onPaid, isSubmitting }) {
 
 export default function BookTeacher() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { user, token } = useAuth()
   const [selectedChildIds, setSelectedChildIds] = useState([])
@@ -130,6 +130,9 @@ export default function BookTeacher() {
   const [paymentData, setPaymentData] = useState(null)
   const [feedback, setFeedback] = useState('')
   const queryErrorToastRef = useRef({ teacher: '', children: '' })
+  const courseSubject = (searchParams.get('subject') || '').trim()
+  const selectedCourseTitle = (searchParams.get('courseTitle') || '').trim()
+  const selectedCourseId = (searchParams.get('courseId') || '').trim()
 
   const teacherQuery = useQuery({
     queryKey: ['teacherBookingProfile', id],
@@ -153,8 +156,12 @@ export default function BookTeacher() {
 
   const subjectOptions = useMemo(() => {
     const items = Array.isArray(teacher.subjects) ? teacher.subjects.filter(Boolean) : []
-    return items.length ? items : ['Quran', 'Arabic']
-  }, [teacher.subjects])
+    const base = items.length ? items : ['Quran', 'Arabic']
+    if (!courseSubject) return base
+    return base.some((item) => item.toLowerCase() === courseSubject.toLowerCase())
+      ? base
+      : [courseSubject, ...base]
+  }, [teacher.subjects, courseSubject])
 
   const selectedDateTime = selectedDate ? DateTime.fromISO(selectedDate, { zone: timezone }) : null
   const availableSlots = selectedDateTime ? extractSlotsForDay(teacher.availability, selectedDateTime.toFormat('cccc')) : []
@@ -165,6 +172,10 @@ export default function BookTeacher() {
   useEffect(() => {
     setPaymentData(null)
   }, [selectedChildIds, selectedSubject, selectedDate, selectedTime, selectedPackage])
+
+  useEffect(() => {
+    if (courseSubject) setSelectedSubject(courseSubject)
+  }, [courseSubject])
 
   useEffect(() => {
     if (teacherQuery.error) {
@@ -198,6 +209,8 @@ export default function BookTeacher() {
         packageType: selectedPackage,
         teacherTimezone: timezone,
         paymentIntentId,
+        courseId: selectedCourseId || undefined,
+        courseTitle: selectedCourseTitle || undefined,
       }),
     }),
     onSuccess: () => {
@@ -269,7 +282,7 @@ export default function BookTeacher() {
       toast.loading('Preparing secure payment...', { id: 'booking-submit' })
       await paymentIntentMutation.mutateAsync()
       toast.dismiss('booking-submit')
-    } catch (error) {
+    } catch {
       toast.dismiss('booking-submit')
     }
   }
@@ -336,6 +349,20 @@ export default function BookTeacher() {
                 </div>
               </div>
             </div>
+
+            {selectedCourseTitle ? (
+              <div className="rounded-[24px] border border-emerald/20 bg-emerald/6 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald/10 text-emerald">
+                    <BookOpen size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black uppercase tracking-wide text-emerald">Enrolling in</div>
+                    <div className="mt-1 font-display text-xl font-bold text-ink">{selectedCourseTitle}</div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div>
               <div className="mb-3 text-sm font-semibold text-ink-soft">Choose children</div>
@@ -429,6 +456,7 @@ export default function BookTeacher() {
               <div className="flex items-center justify-between text-sm"><span className="text-bark">Teacher</span><span className="font-semibold text-ink">{teacher.full_name}</span></div>
               <div className="mt-3 flex items-center justify-between text-sm"><span className="text-bark">Students</span><span className="font-semibold text-ink">{selectedChildIds.length || 0}</span></div>
               <div className="mt-3 flex items-center justify-between text-sm"><span className="text-bark">Subject</span><span className="font-semibold text-ink">{selectedSubject || '—'}</span></div>
+              {selectedCourseTitle ? <div className="mt-3 flex items-center justify-between gap-4 text-sm"><span className="text-bark">Course</span><span className="text-right font-semibold text-ink">{selectedCourseTitle}</span></div> : null}
               <div className="mt-3 flex items-center justify-between text-sm"><span className="text-bark">Date & time</span><span className="font-semibold text-ink">{selectedDate && selectedTime ? `${selectedDate} ${selectedTime}` : '—'}</span></div>
               <div className="mt-3 flex items-center justify-between text-sm"><span className="text-bark">Package</span><span className="font-semibold capitalize text-ink">{selectedPackage}</span></div>
               <div className="mt-4 border-t border-parchment/50 pt-4 flex items-center justify-between"><span className="font-semibold text-ink">Total</span><span className="font-display text-3xl font-bold text-emerald">{bookingLabel}</span></div>

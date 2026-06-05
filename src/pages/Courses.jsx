@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { api, apiFetch, getCourseThumbnail } from '../lib/api'
-import { motion } from 'framer-motion'
+import { motion as Motion } from 'framer-motion'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Play, BookOpen, AlertCircle, Star, Users } from 'lucide-react'
-import { useAuth } from '../lib/auth.jsx'
+import { Search, Play, BookOpen, AlertCircle, Star, Users, ArrowRight, UserRound } from 'lucide-react'
 import { PublicCardsSkeleton } from '../components/skeletons.jsx'
 
 const COURSES_HERO_PHOTO = 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=1600&q=80&auto=format&fit=crop'
@@ -24,11 +23,10 @@ function CourseCard({ course, index }) {
   const lessonCount = course.lesson_count || course.lessons_count || course.total_lessons || 0
   const thumbnail = getCourseThumbnail(course)
   const teacherAvatar = course.profiles?.avatar_url
-  const instructorLink = course.teacher_id ? `/teachers/${course.teacher_id}` : '/teachers'
-  const { user } = useAuth()
+  const courseLink = course.id ? `/courses/${course.id}` : '/courses'
 
   return (
-    <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-30px' }} variants={fadeUp} custom={index}
+    <Motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-30px' }} variants={fadeUp} custom={index}
       className="group bg-white rounded-2xl border-2 border-parchment overflow-hidden hover:border-emerald/30 hover:shadow-[0_12px_40px_-12px_rgba(88,204,2,0.15)] transition-all duration-300 hover:-translate-y-1">
       <div className="relative h-48 bg-gradient-to-br from-emerald/10 to-teal/5 overflow-hidden">
         <img src={thumbnail} alt={title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
@@ -41,24 +39,24 @@ function CourseCard({ course, index }) {
             <span className="px-3 py-1 bg-white/90 backdrop-blur text-emerald font-bold text-sm rounded-lg shadow">{price > 0 ? `$${price}` : 'Free'}</span>
           </div>
         )}
-        <div className="absolute left-4 right-4 bottom-4 flex items-center gap-3">
-          {teacherAvatar ? (
-            <img src={teacherAvatar} alt={teacherName} className="h-10 w-10 rounded-xl border border-white/40 object-cover shadow-md" />
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-sm font-bold text-white backdrop-blur-sm">
-              {teacherName.charAt(0)}
-            </div>
-          )}
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-white">{teacherName}</div>
-            <div className="text-xs text-white/70">Instructor</div>
-          </div>
-        </div>
       </div>
       <div className="p-5">
         <h3 className="font-display font-bold text-ink text-lg mb-1 line-clamp-1 group-hover:text-emerald transition-colors">{title}</h3>
         <p className="text-bark text-xs mb-3">Designed for flexible, instructor-led Islamic learning</p>
         {desc && <p className="text-bark text-sm leading-relaxed line-clamp-2 mb-4">{desc}</p>}
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-parchment/60 bg-ivory/70 p-3">
+          {teacherAvatar ? (
+            <img src={teacherAvatar} alt={teacherName} className="h-10 w-10 rounded-xl object-cover" />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald/10 text-emerald">
+              <UserRound size={18} />
+            </div>
+          )}
+          <div className="min-w-0">
+            <div className="truncate text-sm font-bold text-ink">{teacherName}</div>
+            <div className="text-xs font-semibold text-bark">Instructor</div>
+          </div>
+        </div>
         <div className="mb-4 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-2xl bg-ivory px-2 py-3">
             <Play size={14} className="mx-auto mb-1 text-emerald" />
@@ -77,13 +75,14 @@ function CourseCard({ course, index }) {
           </div>
         </div>
         <div className="flex items-center justify-between pt-3 border-t border-parchment/50">
-          <Link to={instructorLink} className="text-sm font-semibold text-ink-soft hover:text-emerald transition-colors">View Teacher</Link>
-          <Link to={user ? '/dashboard' : '/login'} className="px-4 py-2 text-sm font-semibold text-emerald bg-emerald/8 rounded-xl hover:bg-emerald hover:text-white transition-all">
-            {user ? 'Go to Dashboard' : 'Sign in to Enroll'}
+          <Link to={courseLink} className="text-sm font-semibold text-ink-soft hover:text-emerald transition-colors">View details</Link>
+          <Link to={courseLink} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-emerald rounded-xl hover:bg-emerald/90 transition-all">
+            Enroll in Course
+            <ArrowRight size={15} />
           </Link>
         </div>
       </div>
-    </motion.div>
+    </Motion.div>
   )
 }
 
@@ -107,16 +106,16 @@ export default function Courses() {
         <div className="absolute inset-0 bg-gradient-to-r from-ink/92 via-ink/86 to-ink-soft/78" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.06),transparent_55%)]" />
         <div className="relative max-w-7xl mx-auto px-6 lg:px-8 text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gold/15 border-2 border-gold/20 rounded-full mb-6">
             <span className="text-gold text-xs font-extrabold tracking-wide uppercase">Structured Learning</span>
-          </motion.div>
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="font-display text-4xl sm:text-5xl font-black text-white tracking-tight mb-4">
+          </Motion.div>
+          <Motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="font-display text-4xl sm:text-5xl font-black text-white tracking-tight mb-4">
             Explore Courses
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-sand text-lg max-w-xl mx-auto font-semibold">
+          </Motion.h1>
+          <Motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-sand text-lg max-w-xl mx-auto font-semibold">
             Structured learning paths in Quran, Tajweed, Arabic, and Islamic sciences.
-          </motion.p>
+          </Motion.p>
         </div>
       </section>
       <section className="max-w-7xl mx-auto px-6 lg:px-8 -mt-6 relative z-10">

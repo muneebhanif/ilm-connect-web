@@ -8,6 +8,7 @@ import Home from './pages/Home'
 import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
 import Courses from './pages/Courses'
+import CourseDetail from './pages/CourseDetail'
 import About from './pages/About'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="/teachers/:id" element={<TeacherDetail />} />
         <Route path="/teachers/:id/book" element={<ProtectedRoute roles={['parent']}><BookTeacher /></ProtectedRoute>} />
         <Route path="/courses" element={<Courses />} />
+        <Route path="/courses/:id" element={<CourseDetail />} />
         <Route path="/about" element={<About />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />

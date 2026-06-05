@@ -420,8 +420,8 @@ export default function Home() {
                       <div className="text-lg font-extrabold text-emerald">{course.is_free ? 'Free' : `$${course.price || 0}`}</div>
                       <div className="text-xs text-bark font-semibold">{course.total_lessons || 0} lessons</div>
                     </div>
-                    <Link to="/courses" className="inline-flex items-center gap-2 rounded-xl bg-ivory border-2 border-parchment px-4 py-2.5 text-sm font-bold text-ink-soft hover:border-emerald/30 hover:text-emerald transition-all">
-                      Explore <PlayCircle size={15} />
+                    <Link to={course.id ? `/courses/${course.id}` : '/courses'} className="inline-flex items-center gap-2 rounded-xl bg-ivory border-2 border-parchment px-4 py-2.5 text-sm font-bold text-ink-soft hover:border-emerald/30 hover:text-emerald transition-all">
+                      Enroll <PlayCircle size={15} />
                     </Link>
                   </div>
                 </div>
