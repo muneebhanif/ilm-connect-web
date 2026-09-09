@@ -34,9 +34,10 @@ export default function CourseDetail() {
     subject,
     courseTitle: title,
   }).toString()
-  const parentBookingPath = teacherId ? `/teachers/${teacherId}/book?${bookingQuery}` : '/teachers'
-  const primaryPath = !user ? '/login' : user.role === 'parent' ? parentBookingPath : '/dashboard'
-  const primaryLabel = !user ? 'Sign in to Enroll' : user.role === 'parent' ? 'Enroll in Course' : 'Open Dashboard'
+  const enrollmentPath = teacherId ? `/teachers/${teacherId}/book?${bookingQuery}` : '/teachers'
+  const canEnroll = !user || user.role === 'parent' || user.role === 'student'
+  const primaryPath = !user ? `/login?redirect=${encodeURIComponent(enrollmentPath)}` : canEnroll ? enrollmentPath : '/dashboard'
+  const primaryLabel = !user ? 'Sign in to Enroll' : canEnroll ? 'Enroll in Course' : 'Open Dashboard'
 
   if (isLoading) {
     return (

@@ -62,7 +62,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/teachers" element={<Teachers />} />
         <Route path="/teachers/:id" element={<TeacherDetail />} />
-        <Route path="/teachers/:id/book" element={<ProtectedRoute roles={['parent']}><BookTeacher /></ProtectedRoute>} />
+        <Route path="/teachers/:id/book" element={<ProtectedRoute roles={['parent', 'student']}><BookTeacher /></ProtectedRoute>} />
         <Route path="/courses" element={<Courses />} />
         <Route path="/courses/:id" element={<CourseDetail />} />
         <Route path="/about" element={<About />} />

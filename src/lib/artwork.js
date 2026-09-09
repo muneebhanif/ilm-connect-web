@@ -7,6 +7,7 @@ import girlsArt from '../../assets/2garls.png'
 import happyHijabiArt from '../../assets/happyHijabi.png'
 import happyManArt from '../../assets/happyman.png'
 import happyMomArt from '../../assets/happymom.png'
+import phoneMockupArt from '../../assets/phone mockup.png'
 
 export {
   learningLiveClassArt,
@@ -18,6 +19,7 @@ export {
   happyHijabiArt,
   happyManArt,
   happyMomArt,
+  phoneMockupArt,
 }
 
 export function pickLocalSubjectArt(input = '') {

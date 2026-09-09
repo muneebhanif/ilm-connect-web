@@ -9,6 +9,7 @@ import {
   Calendar,
   CheckCircle2,
   CreditCard,
+  GraduationCap,
   ShieldCheck,
   Sparkles,
   UserRound,
@@ -17,7 +18,7 @@ import {
 import toast from 'react-hot-toast'
 import { useAuth } from '../lib/auth.jsx'
 import { api, apiFetch, authFetch, normalizeTeacherProfileResponse } from '../lib/api.js'
-import { happyMomArt, learningLiveClassArt } from '../lib/artwork'
+import { happyHijabiArt, happyMomArt, learningLiveClassArt } from '../lib/artwork'
 import { DashboardShell, SectionCard, EmptyState, ActionButton } from '../components/dashboard-ui.jsx'
 import { BookingPageSkeleton } from '../components/skeletons.jsx'
 
@@ -122,6 +123,7 @@ export default function BookTeacher() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { user, token } = useAuth()
+  const isStudent = user?.role === 'student'
   const [selectedChildIds, setSelectedChildIds] = useState([])
   const [selectedSubject, setSelectedSubject] = useState('')
   const [selectedDate, setSelectedDate] = useState('')
@@ -140,13 +142,20 @@ export default function BookTeacher() {
     enabled: !!id,
   })
 
+  const studentQuery = useQuery({
+    queryKey: ['studentBookingProfile', user?.id],
+    queryFn: () => authFetch(api.studentProfile(user.id), token),
+    enabled: isStudent && !!user?.id && !!token,
+  })
+
   const childrenQuery = useQuery({
     queryKey: ['parentChildrenBooking', user?.id],
     queryFn: () => authFetch(api.parentChildren(user.id), token),
-    enabled: !!user?.id && !!token,
+    enabled: !isStudent && !!user?.id && !!token,
   })
 
   const teacher = normalizeTeacherProfileResponse(teacherQuery.data || {}, id)
+  const studentRecord = studentQuery.data?.student
   const children = childrenQuery.data?.children || []
   const timezone = teacher.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   const dates = useMemo(() => {
@@ -170,6 +179,12 @@ export default function BookTeacher() {
   const bookingLabel = `$${totalAmount.toFixed(2)}`
 
   useEffect(() => {
+    if (isStudent && user?.id) {
+      setSelectedChildIds([studentRecord?.id || user.id])
+    }
+  }, [isStudent, user?.id, studentRecord?.id])
+
+  useEffect(() => {
     setPaymentData(null)
   }, [selectedChildIds, selectedSubject, selectedDate, selectedTime, selectedPackage])
 
@@ -188,21 +203,27 @@ export default function BookTeacher() {
   }, [teacherQuery.error])
 
   useEffect(() => {
-    if (childrenQuery.error) {
+    if (!isStudent && childrenQuery.error) {
       const message = mapBookingErrorMessage(childrenQuery.error?.message || 'Failed to load children for booking.')
       if (queryErrorToastRef.current.children !== message) {
         queryErrorToastRef.current.children = message
         toast.error(message)
       }
+    } else if (isStudent && studentQuery.error) {
+      const message = mapBookingErrorMessage(studentQuery.error?.message || 'Failed to load student record.')
+      if (queryErrorToastRef.current.children !== message) {
+        queryErrorToastRef.current.children = message
+        toast.error(message)
+      }
     }
-  }, [childrenQuery.error])
+  }, [isStudent, childrenQuery.error, studentQuery.error])
 
   const bookingMutation = useMutation({
     mutationFn: (paymentIntentId) => authFetch(api.bookings(), token, {
       method: 'POST',
       body: JSON.stringify({
         teacherId: teacher.id,
-        studentIds: selectedChildIds,
+        studentIds: selectedChildIds.length > 0 ? selectedChildIds : (user?.id ? [user.id] : []),
         subject: selectedSubject,
         sessionDate: DateTime.fromISO(`${selectedDate}T${selectedTime}`, { zone: timezone }).toUTC().toISO(),
         durationMinutes: 60,
@@ -215,7 +236,7 @@ export default function BookTeacher() {
     }),
     onSuccess: () => {
       toast.success('Class booked successfully!')
-      navigate('/dashboard/parent')
+      navigate(isStudent ? '/dashboard/student' : '/dashboard/parent')
     },
     onError: (err) => toast.error(mapBookingErrorMessage(err?.message || 'Failed to create booking.')),
   })
@@ -254,7 +275,7 @@ export default function BookTeacher() {
   const isBusy = paymentIntentMutation.isPending || verifyAndBookMutation.isPending || bookingMutation.isPending
 
   const validateSelection = () => {
-    if (selectedChildIds.length === 0) return 'Select at least one child.'
+    if (selectedChildIds.length === 0 && !isStudent) return 'Select at least one child.'
     if (!selectedSubject) return 'Choose a subject.'
     if (!selectedDate) return 'Choose a date.'
     if (!selectedTime) return 'Choose a time slot.'
@@ -287,13 +308,13 @@ export default function BookTeacher() {
     }
   }
 
-  if (teacherQuery.isLoading || childrenQuery.isLoading) {
+  if (teacherQuery.isLoading || (!isStudent && childrenQuery.isLoading) || (isStudent && studentQuery.isLoading)) {
     return <BookingPageSkeleton />
   }
 
-  const teacherOrChildrenFailed = teacherQuery.isError || childrenQuery.isError
+  const bookingDataFailed = teacherQuery.isError || (!isStudent && childrenQuery.isError) || (isStudent && studentQuery.isError)
 
-  if (teacherOrChildrenFailed) {
+  if (bookingDataFailed) {
     return (
       <div className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-emerald-pale/25 via-ivory to-ivory" />
@@ -301,7 +322,7 @@ export default function BookTeacher() {
           <DashboardShell
             badge="Live booking"
             title="Booking unavailable"
-            description="We could not load the teacher or child booking details right now."
+            description="We could not load the teacher or booking details right now."
             actions={<Link to={`/teachers/${id}`} className="inline-flex items-center gap-2 rounded-2xl border border-parchment bg-white/92 px-5 py-3 text-sm font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald"><ArrowLeft size={16} /> Back to profile</Link>}
           >
             <SectionCard title="Try again">
@@ -310,7 +331,11 @@ export default function BookTeacher() {
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <button onClick={() => teacherQuery.refetch()} className="rounded-xl border border-parchment/60 bg-white px-4 py-2 font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Retry teacher profile</button>
-                <button onClick={() => childrenQuery.refetch()} className="rounded-xl border border-parchment/60 bg-white px-4 py-2 font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Retry children</button>
+                {!isStudent ? (
+                  <button onClick={() => childrenQuery.refetch()} className="rounded-xl border border-parchment/60 bg-white px-4 py-2 font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Retry children</button>
+                ) : (
+                  <button onClick={() => studentQuery.refetch()} className="rounded-xl border border-parchment/60 bg-white px-4 py-2 font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald">Retry student profile</button>
+                )}
               </div>
             </SectionCard>
           </DashboardShell>
@@ -328,13 +353,13 @@ export default function BookTeacher() {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-emerald-pale/25 via-ivory to-ivory" />
       <img src={learningLiveClassArt} alt="Booking illustration" className="pointer-events-none absolute right-8 top-24 hidden w-[22rem] opacity-12 xl:block" />
       <div className="pointer-events-none absolute left-8 bottom-10 hidden w-24 xl:block animate-breathe art-breathing opacity-90" style={{ animationDelay: '1.2s' }}>
-        <img src={happyMomArt} alt="Parent illustration" className="h-full w-full object-contain" />
+        <img src={isStudent ? happyHijabiArt : happyMomArt} alt={isStudent ? 'Student illustration' : 'Parent illustration'} className="h-full w-full object-contain" />
       </div>
       <div className="relative">
         <DashboardShell
           badge="Live booking"
           title={`Book ${teacher.full_name || 'teacher'}`}
-          description="Select children, subject, date, and time to complete your booking."
+          description={isStudent ? 'Select subject, package, date, and time to complete your enrollment.' : 'Select children, subject, date, and time to complete your booking.'}
           actions={<Link to={`/teachers/${id}`} className="inline-flex items-center gap-2 rounded-2xl border border-parchment bg-white/92 px-5 py-3 text-sm font-semibold text-ink-soft hover:border-emerald/30 hover:text-emerald"><ArrowLeft size={16} /> Back to profile</Link>}
         >
           <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
@@ -365,8 +390,27 @@ export default function BookTeacher() {
             ) : null}
 
             <div>
-              <div className="mb-3 text-sm font-semibold text-ink-soft">Choose children</div>
-              {children.length === 0 ? (
+              <div className="mb-3 text-sm font-semibold text-ink-soft">
+                {isStudent ? 'Student enrollment' : 'Choose children'}
+              </div>
+              {isStudent ? (
+                <div className="rounded-2xl border border-emerald bg-emerald/6 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald text-white">
+                        <GraduationCap size={20} />
+                      </div>
+                      <div>
+                        <div className="font-bold text-ink">{studentRecord?.name || user?.full_name || 'Student'}</div>
+                        <div className="text-xs text-bark">{user?.email || 'Self-enrolled student'}</div>
+                      </div>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald/10 px-3 py-1 text-xs font-bold text-emerald">
+                      <CheckCircle2 size={14} /> Enrolling self
+                    </div>
+                  </div>
+                </div>
+              ) : children.length === 0 ? (
                 <EmptyState title="No children found" text="Add a child profile first so booking works correctly." action={<Link to="/dashboard/parent" className="text-sm font-semibold text-emerald">Open parent dashboard</Link>} />
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -410,7 +454,7 @@ export default function BookTeacher() {
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-bold text-emerald">${Number(pkg.price || 0).toFixed(2)}</div>
-                          <div className="text-[11px] text-bark">per child</div>
+                          <div className="text-[11px] text-bark">{isStudent ? 'per session' : 'per child'}</div>
                         </div>
                       </div>
                     </button>

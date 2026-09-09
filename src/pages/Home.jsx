@@ -2,7 +2,7 @@ import { motion as Motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api, apiFetch, getCourseThumbnail, getTeacherCoverImage, normalizeTeacher } from '../lib/api'
-import { girlsArt, happyHijabiArt, happyManArt, happyMomArt, knowledgeJourneyArt, learningLiveClassArt, teacherSpotlightArt } from '../lib/artwork'
+import { girlsArt, happyHijabiArt, happyManArt, happyMomArt, knowledgeJourneyArt, learningLiveClassArt, phoneMockupArt, teacherSpotlightArt } from '../lib/artwork'
 import { PublicCardsSkeleton } from '../components/skeletons.jsx'
 import TeacherCoverBanner from '../components/TeacherCoverBanner.jsx'
 import {
@@ -25,6 +25,9 @@ import {
   Trophy,
   Flame,
   Sparkles,
+  Smartphone,
+  Bell,
+  Download,
 } from 'lucide-react'
 
 const fadeUp = {
@@ -474,6 +477,147 @@ export default function Home() {
                 )}
               </Motion.div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── DOWNLOAD OUR MOBILE APP ── */}
+      <section className="relative overflow-hidden py-20 bg-gradient-to-b from-white via-emerald-pale/15 to-white border-y-2 border-parchment/60">
+        <div className="pointer-events-none absolute -left-20 top-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-emerald/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-20 top-1/3 h-96 w-96 rounded-full bg-teal/10 blur-3xl" />
+        
+        <div className="relative max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid items-center gap-12 lg:grid-cols-12">
+            {/* Left Content */}
+            <Motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-60px' }}
+              variants={fadeUp}
+              className="lg:col-span-7"
+            >
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald/10 border-2 border-emerald/20 rounded-full mb-5">
+                <Smartphone size={16} className="text-emerald" />
+                <span className="text-emerald text-xs font-extrabold tracking-wide uppercase">Download Our Mobile App</span>
+              </div>
+              <h2 className="font-display text-3xl sm:text-5xl font-black text-ink tracking-tight leading-[1.15]">
+                Take Your Quran & Tajweed Learning <span className="text-emerald">Everywhere</span>
+              </h2>
+              <p className="mt-4 text-base sm:text-lg text-bark leading-relaxed max-w-2xl">
+                Experience seamless 1-on-1 Islamic learning on the go. Join live video sessions with verified teachers, receive instant class reminders, and practice daily Quran recitation from anywhere in the world.
+              </p>
+
+              {/* Feature Points */}
+              <div className="mt-8 space-y-4">
+                <div className="flex items-start gap-4 rounded-2xl border border-parchment/80 bg-white/80 p-4 shadow-sm backdrop-blur-sm transition-all hover:border-emerald/30">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald/10 text-emerald">
+                    <Video size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-ink text-base">Live Interactive Video Classes</h3>
+                    <p className="mt-0.5 text-sm text-bark">Crystal-clear video & audio with teacher screen share, live messaging, and interactive whiteboard tools.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4 rounded-2xl border border-parchment/80 bg-white/80 p-4 shadow-sm backdrop-blur-sm transition-all hover:border-teal/30">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal/10 text-teal">
+                    <Bell size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-ink text-base">Smart Class Reminders & Schedule</h3>
+                    <p className="mt-0.5 text-sm text-bark">Instant push notifications 15 minutes before class with automatic timezone alignment so you never miss a lesson.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4 rounded-2xl border border-parchment/80 bg-white/80 p-4 shadow-sm backdrop-blur-sm transition-all hover:border-purple/30">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple/10 text-purple">
+                    <BookOpen size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-ink text-base">Lesson Recordings & Progress Tracking</h3>
+                    <p className="mt-0.5 text-sm text-bark">Revisit previous classes, follow curriculum milestones, and practice recitation whenever you want.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* App Store Buttons */}
+              <div className="mt-8 flex flex-wrap items-center gap-4">
+                <a
+                  href="#download-app"
+                  onClick={(e) => { e.preventDefault(); alert('IlmConnect Mobile App is available for iOS & Android. Download links and Expo build will be dispatched.'); }}
+                  className="group flex items-center gap-3.5 rounded-2xl bg-ink px-5 py-3.5 text-white transition-all duration-300 hover:bg-ink-soft hover:shadow-lg hover:-translate-y-0.5"
+                >
+                  <svg className="h-7 w-7 fill-current" viewBox="0 0 24 24">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.93-2.85-.9.04-1.99.6-2.64 1.36-.58.67-1.09 1.74-.95 2.77.99.08 2.03-.53 2.66-1.28z" />
+                  </svg>
+                  <div className="text-left">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-parchment/70">Download on the</div>
+                    <div className="text-sm font-black tracking-wide">App Store</div>
+                  </div>
+                </a>
+
+                <a
+                  href="#download-app"
+                  onClick={(e) => { e.preventDefault(); alert('IlmConnect Mobile App is available for iOS & Android. Download links and Expo build will be dispatched.'); }}
+                  className="group flex items-center gap-3.5 rounded-2xl bg-ink px-5 py-3.5 text-white transition-all duration-300 hover:bg-ink-soft hover:shadow-lg hover:-translate-y-0.5"
+                >
+                  <svg className="h-7 w-7 fill-current" viewBox="0 0 24 24">
+                    <path d="M3.609 1.814L13.793 12 3.61 22.186a2.213 2.213 0 0 1-.365-1.229V3.043c0-.462.133-.892.364-1.229zm10.89 10.89l2.308 2.309-12.04 6.842 9.732-9.151zm0-1.408L4.767 2.145l12.04 6.842-2.308 2.309zm1.415.704l2.964 1.684a1.865 1.865 0 0 0 0-3.368l-2.964 1.684z" />
+                  </svg>
+                  <div className="text-left">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-parchment/70">GET IT ON</div>
+                    <div className="text-sm font-black tracking-wide">Google Play</div>
+                  </div>
+                </a>
+
+                <div className="flex items-center gap-3 border-l-2 border-parchment pl-4 text-xs font-bold text-bark">
+                  <div className="flex text-amber-500 font-black">
+                    ★ ★ ★ ★ ★
+                  </div>
+                  <div>
+                    <span className="text-ink font-extrabold">4.9/5 Mobile Rating</span>
+                    <div className="text-[11px] text-bark font-semibold">Free on iOS & Android</div>
+                  </div>
+                </div>
+              </div>
+            </Motion.div>
+
+            {/* Right Phone Mockup Visual */}
+            <Motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-60px' }}
+              variants={pop}
+              className="relative lg:col-span-5 flex items-center justify-center pt-6 lg:pt-0"
+            >
+              {/* Decorative radial blur backdrop */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="h-72 w-72 sm:h-96 sm:w-96 rounded-full bg-gradient-to-tr from-emerald/25 via-teal/20 to-gold/15 blur-2xl animate-pulse" style={{ animationDuration: '4s' }} />
+              </div>
+
+              {/* Floating Tag Top */}
+              <div className="absolute -top-2 left-2 sm:-top-4 sm:left-4 z-20 flex items-center gap-2.5 rounded-2xl border-2 border-white bg-white/95 px-4 py-2.5 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.12)] backdrop-blur-md">
+                <span className="flex h-2.5 w-2.5 rounded-full bg-rose animate-ping" />
+                <div className="text-xs font-extrabold text-ink">Live Class in Session</div>
+              </div>
+
+              {/* Floating Tag Bottom */}
+              <div className="absolute -bottom-2 right-2 sm:-bottom-3 sm:right-4 z-20 flex items-center gap-2.5 rounded-2xl border-2 border-white bg-white/95 px-4 py-2.5 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.12)] backdrop-blur-md">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald text-white text-xs font-black">
+                  ✓
+                </div>
+                <div className="text-xs font-extrabold text-ink">Quran Recitation • 100%</div>
+              </div>
+
+              {/* Phone Mockup Photo Container */}
+              <div className="relative z-10 max-w-[260px] sm:max-w-[300px] lg:max-w-[340px] transform transition-transform duration-500 hover:scale-[1.03]">
+                <img
+                  src={phoneMockupArt}
+                  alt="IlmConnect Mobile App"
+                  className="h-auto w-full drop-shadow-[0_25px_50px_rgba(6,78,59,0.22)] object-contain"
+                />
+              </div>
+            </Motion.div>
           </div>
         </div>
       </section>
