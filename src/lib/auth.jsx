@@ -95,8 +95,40 @@ export function AuthProvider({ children }) {
     return nextSession
   }, [applySession])
 
-  // Restore session on mount
+  // Restore session on mount or from email confirmation link
   useEffect(() => {
+    // 1. Check if user clicked email confirmation link (tokens in URL hash)
+    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    if (hash && (hash.includes('access_token=') || hash.includes('type=signup') || hash.includes('type=recovery'))) {
+      const params = new URLSearchParams(hash.replace(/^#/, ''))
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+      if (accessToken) {
+        const sess = { access_token: accessToken, refresh_token: refreshToken }
+        // Clean URL hash so tokens aren't displayed in address bar
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+
+        fetch(api.verifySession(), {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+          .then(async (r) => {
+            if (!r.ok) throw new Error('verify-failed')
+            return r.json()
+          })
+          .then(async (data) => {
+            if (data.valid && data.user?.id) {
+              await applySession(sess, data.user.id, data.user)
+            } else {
+              throw new Error('invalid-session')
+            }
+          })
+          .catch(() => clearAuth())
+          .finally(() => setLoading(false))
+        return
+      }
+    }
+
+    // 2. Normal stored session restoration
     const stored = loadSession()
     if (!stored?.access_token) {
       clearAuth()

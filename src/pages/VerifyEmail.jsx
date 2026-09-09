@@ -86,7 +86,15 @@ export default function VerifyEmail() {
           </div>
           <div className="mt-5 text-center">
             <h1 className="font-display text-2xl font-black text-ink">Verify your email</h1>
-            <p className="mt-2 text-sm font-semibold leading-6 text-bark">Enter the 6-digit code sent to your email before accessing your account.</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-bark">
+              We've sent a verification email to <span className="text-emerald font-bold">{email || 'your email'}</span>.
+            </p>
+          </div>
+
+          <div className="mt-4 rounded-2xl bg-emerald/5 border border-emerald/25 p-3.5 text-xs text-bark leading-relaxed">
+            <span className="font-black text-ink block mb-0.5">Two ways to confirm:</span>
+            1. <strong>Click the link</strong> in the email to activate your account instantly.<br />
+            2. Or enter the <strong>6-digit code</strong> below if your email includes one.
           </div>
 
           {error ? (
