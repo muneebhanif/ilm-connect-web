@@ -13,6 +13,7 @@ import About from './pages/About'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import VerifyEmail from './pages/VerifyEmail'
 import BookTeacher from './pages/BookTeacher'
 import ParentDashboard from './pages/dashboard/ParentDashboard'
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="/signup-parent" element={<Navigate to="/signup?role=parent" replace />} />
         <Route path="/signup-teacher" element={<Navigate to="/signup?role=teacher" replace />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
       </Route>
 

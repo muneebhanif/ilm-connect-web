@@ -23,7 +23,7 @@ export default function ForgotPassword() {
       await apiFetch(api.forgotPassword(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, redirectTo: `${window.location.origin}/login` }),
+        body: JSON.stringify({ email: normalizedEmail, redirectTo: `${window.location.origin}/reset-password` }),
       })
       setSuccess('Reset email sent! Please check your inbox and spam folder.')
     } catch (err) {
