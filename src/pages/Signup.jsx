@@ -113,7 +113,7 @@ export default function Signup() {
         email: email.trim().toLowerCase(),
         password,
         fullName: fullName.trim(),
-        ...(role === 'student' && studentId.trim() ? { studentId: studentId.trim() } : {}),
+        ...(role === 'student' && studentId.trim() ? { studentId: studentId.trim(), parentId: studentId.trim() } : {}),
       }
       const result = await signup(role, body)
       navigate(`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`, {
@@ -313,7 +313,7 @@ export default function Signup() {
               </div>
             </div>
 
-            {/* Student ID / Link Code (Optional for students) */}
+            {/* Student ID / Parent ID (Optional for students) */}
             {role === 'student' && (
               <div className="pt-1">
                 {!showStudentIdField ? (
@@ -322,13 +322,13 @@ export default function Signup() {
                     onClick={() => setShowStudentIdField(true)}
                     className="text-xs font-extrabold text-teal hover:underline inline-flex items-center gap-1"
                   >
-                    + Have a Student ID from your parent? Enter it here
+                    + Have a Parent ID or Student ID? Enter it here
                   </button>
                 ) : (
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
-                        Student ID / Link Code <span className="text-bark font-medium lowercase">(optional)</span>
+                        Parent ID or Student ID <span className="text-bark font-medium lowercase">(optional)</span>
                       </label>
                       <button
                         type="button"
@@ -348,11 +348,11 @@ export default function Signup() {
                         value={studentId}
                         onChange={(e) => setStudentId(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 bg-ivory rounded-xl text-sm text-slate-900 font-semibold placeholder:text-sand focus:outline-none focus:ring-2 focus:ring-teal/20 border-2 border-parchment focus:border-teal"
-                        placeholder="e.g. child ID from parent profile"
+                        placeholder="e.g. Parent ID or Child ID"
                       />
                     </div>
                     <p className="text-[11px] text-bark mt-1">
-                      Links your new student account with your parent's family record.
+                      Links your new student account with your parent's family record immediately. Leave blank for a direct account.
                     </p>
                   </div>
                 )}

@@ -66,6 +66,7 @@ export const api = {
   parentClasses: (id) => `${API_URL}/api/parent/${id}/classes`,
   childProfile: (id) => `${API_URL}/api/parent/child/${id}`,
   addChild: (id) => `${API_URL}/api/parent/${id}/children`,
+  linkStudent: (id) => `${API_URL}/api/parent/${id}/link-student`,
   deleteChild: (pid, cid) => `${API_URL}/api/parent/${pid}/children/${cid}`,
   teacherSchedule: (id) => `${API_URL}/api/teachers/${id}/schedule`,
   teacherStudents: (id) => `${API_URL}/api/teachers/${id}/students`,

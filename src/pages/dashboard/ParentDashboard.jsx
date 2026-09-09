@@ -4,7 +4,7 @@ import { Link, useOutletContext } from 'react-router-dom'
 import {
   Users, Calendar, BookOpen, Search, Plus, Trash2, UserRound, GraduationCap, Clock3, Star, Sparkles,
   Settings, Bell, School, AlertCircle, Video, ShieldCheck, CheckCircle2, ChevronRight, Mail, Lock,
-  User, Camera, TrendingUp, Award, MessageSquare, ArrowRight, XCircle, MapPin, Phone,
+  User, Camera, TrendingUp, Award, MessageSquare, ArrowRight, XCircle, MapPin, Phone, Copy, Check, Link2,
 } from 'lucide-react'
 import { useAuth } from '../../lib/auth.jsx'
 import toast from 'react-hot-toast'
@@ -29,6 +29,9 @@ export default function ParentDashboard() {
   const { activeTab, setActiveTab } = useOutletContext()
   const [selectedChildId, setSelectedChildId] = useState(null)
   const [childForm, setChildForm] = useState({ name: '', age: '' })
+  const [childTab, setChildTab] = useState('create') // 'create' | 'link'
+  const [linkEmail, setLinkEmail] = useState('')
+  const [copiedParentId, setCopiedParentId] = useState(false)
   const [credentialForm, setCredentialForm] = useState({ email: '', password: '' })
   const [profileForm, setProfileForm] = useState({ full_name: user?.full_name || '' })
   const [reviewDrafts, setReviewDrafts] = useState({})
@@ -68,6 +71,19 @@ export default function ParentDashboard() {
 
   const addChild = useMutation({ mutationFn: (p) => authFetch(api.addChild(user.id), token, { method: 'POST', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Child added'); setChildForm({ name: '', age: '' }); qc.invalidateQueries({ queryKey: ['parentChildren', user.id] }); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Failed to add child') })
   const deleteChild = useMutation({ mutationFn: (id) => authFetch(api.deleteChild(user.id, id), token, { method: 'DELETE' }), onSuccess: (_, deletedChildId) => { toast.success('Child removed'); if (selectedChildId === deletedChildId) setSelectedChildId(null); qc.invalidateQueries({ queryKey: ['parentChildren', user.id] }); qc.invalidateQueries({ queryKey: ['childDetail', deletedChildId] }) }, onError: (err) => toast.error(err?.message || 'Failed to remove child') })
+  const linkStudent = useMutation({
+    mutationFn: (email) => authFetch(api.linkStudent(user.id), token, {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim() }),
+    }),
+    onSuccess: (data) => {
+      toast.success(data?.message || 'Student account linked to family successfully!')
+      setLinkEmail('')
+      qc.invalidateQueries({ queryKey: ['parentChildren', user.id] })
+      qc.invalidateQueries({ queryKey: ['parentProfile', user.id] })
+    },
+    onError: (err) => toast.error(err?.message || 'Failed to link student account'),
+  })
   const updateProfile = useMutation({ mutationFn: (p) => authFetch(api.updateParentProfile(user.id), token, { method: 'PUT', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Profile updated'); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Failed to update profile') })
   const uploadAvatar = useMutation({ mutationFn: async (f) => { const img = await fileToBase64(f); return authFetch(api.uploadProfileImage(user.id), token, { method: 'POST', body: JSON.stringify({ image: img, fileExtension: getFileExtension(f.name) }) }) }, onSuccess: () => { toast.success('Avatar uploaded'); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Upload failed') })
   const reviewMut = useMutation({ mutationFn: (p) => authFetch(api.createReview(), token, { method: 'POST', body: JSON.stringify(p) }), onSuccess: () => toast.success('Review submitted!'), onError: (err) => toast.error(err?.message || 'Failed to submit review') })
@@ -213,40 +229,119 @@ export default function ParentDashboard() {
   // ─── CHILDREN ───
   if (activeTab === 'children') return (
     <PageHeader title="Children" description="Add or manage child profiles and track their progress.">
+      {/* Family Link ID Banner */}
+      <div className="mb-6 rounded-2xl border border-emerald/25 bg-emerald/5 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wider text-emerald">Family Link ID (Parent ID)</div>
+          <div className="font-mono text-sm font-semibold text-ink mt-0.5 select-all">{user?.id}</div>
+          <p className="text-xs text-bark mt-1">
+            Share this ID with your child so they can link their student account during registration.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard?.writeText(user?.id || '')
+            setCopiedParentId(true)
+            toast.success('Parent ID copied to clipboard!')
+            setTimeout(() => setCopiedParentId(false), 2000)
+          }}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald/30 bg-white text-xs font-bold text-emerald shadow-sm hover:bg-emerald/10 cursor-pointer shrink-0"
+        >
+          {copiedParentId ? <Check size={14} /> : <Copy size={14} />}
+          <span>{copiedParentId ? 'Copied' : 'Copy ID'}</span>
+        </button>
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <SectionCard title="Manage children" subtitle="Add new children or remove existing profiles.">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              addChild.mutate({ name: childForm.name.trim(), age: Number(childForm.age) })
-            }}
-            className="grid gap-4 sm:grid-cols-[1fr_100px_auto]"
-          >
-            <TextInput
-              label="Name"
-              placeholder="Muhammad Ibrahim"
-              value={childForm.name}
-              onChange={(e) => setChildForm((p) => ({ ...p, name: e.target.value }))}
-            />
-            <TextInput
-              label="Age"
-              type="number"
-              min="3"
-              max="25"
-              value={childForm.age}
-              onChange={(e) => setChildForm((p) => ({ ...p, age: e.target.value }))}
-            />
-            <div className="self-end">
-              <ActionButton type="submit" disabled={addChild.isPending || !childForm.name || !childForm.age} icon={Plus}>
-                {addChild.isPending ? 'Adding...' : 'Add'}
-              </ActionButton>
-            </div>
-          </form>
+        <SectionCard title="Manage children" subtitle="Create child profiles or link registered student accounts.">
+          {/* Sub-tabs */}
+          <div className="flex rounded-xl bg-ivory p-1 border border-parchment/60 mb-4">
+            <button
+              type="button"
+              onClick={() => setChildTab('create')}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+                childTab === 'create'
+                  ? 'bg-white text-emerald shadow-sm'
+                  : 'text-bark hover:text-ink'
+              }`}
+            >
+              + Create Child Profile
+            </button>
+            <button
+              type="button"
+              onClick={() => setChildTab('link')}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+                childTab === 'link'
+                  ? 'bg-white text-emerald shadow-sm'
+                  : 'text-bark hover:text-ink'
+              }`}
+            >
+              🔗 Link Student Account
+            </button>
+          </div>
+
+          {childTab === 'create' ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                addChild.mutate({ name: childForm.name.trim(), age: Number(childForm.age) })
+              }}
+              className="grid gap-4 sm:grid-cols-[1fr_100px_auto]"
+            >
+              <TextInput
+                label="Name"
+                placeholder="Muhammad Ibrahim"
+                value={childForm.name}
+                onChange={(e) => setChildForm((p) => ({ ...p, name: e.target.value }))}
+              />
+              <TextInput
+                label="Age"
+                type="number"
+                min="3"
+                max="25"
+                value={childForm.age}
+                onChange={(e) => setChildForm((p) => ({ ...p, age: e.target.value }))}
+              />
+              <div className="self-end">
+                <ActionButton type="submit" disabled={addChild.isPending || !childForm.name || !childForm.age} icon={Plus}>
+                  {addChild.isPending ? 'Adding...' : 'Add'}
+                </ActionButton>
+              </div>
+            </form>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                linkStudent.mutate(linkEmail.trim())
+              }}
+              className="grid gap-4 sm:grid-cols-[1fr_auto]"
+            >
+              <TextInput
+                label="Student's Registered Email"
+                type="email"
+                placeholder="student@example.com"
+                value={linkEmail}
+                onChange={(e) => setLinkEmail(e.target.value)}
+              />
+              <div className="self-end">
+                <ActionButton type="submit" disabled={linkStudent.isPending || !linkEmail.trim()} icon={Link2}>
+                  {linkStudent.isPending ? 'Linking...' : 'Link Account'}
+                </ActionButton>
+              </div>
+            </form>
+          )}
 
           {addChild.isError && (
             <div className="mt-3 flex items-center gap-2 rounded-xl bg-rose/10 border border-rose/20 px-3 py-2 text-sm text-rose">
               <AlertCircle size={14} />
               {addChild.error.message}
+            </div>
+          )}
+          {linkStudent.isError && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl bg-rose/10 border border-rose/20 px-3 py-2 text-sm text-rose">
+              <AlertCircle size={14} />
+              {linkStudent.error.message}
             </div>
           )}
 
