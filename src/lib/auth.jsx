@@ -210,7 +210,7 @@ export function AuthProvider({ children }) {
   const token = session?.access_token || null
 
   return (
-    <AuthContext.Provider value={{ user, token, session, loading, login, signup, logout, refreshSession, updateUser }}>
+    <AuthContext.Provider value={{ user, token, session, loading, login, signup, logout, refreshSession, updateUser, applySession }}>
       {children}
     </AuthContext.Provider>
   )

@@ -54,7 +54,7 @@ const roles = [
 ]
 
 export default function Signup() {
-  const { signup, user } = useAuth()
+  const { signup, login, applySession, user } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -109,21 +109,31 @@ export default function Signup() {
 
     setLoading(true)
     try {
+      const normalizedEmail = email.trim().toLowerCase()
       const body = {
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
         fullName: fullName.trim(),
         ...(role === 'student' && studentId.trim() ? { studentId: studentId.trim(), parentId: studentId.trim() } : {}),
       }
       const result = await signup(role, body)
-      navigate(`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`, {
-        replace: true,
-        state: {
-          verificationMessage:
-            result?.message ||
-            `Your ${role} account was created. Enter the verification code sent to your email.`,
-        },
-      })
+
+      if (result?.session && result?.user?.id) {
+        await applySession(result.session, result.user.id, result.user)
+        navigate('/dashboard', { replace: true })
+        return
+      }
+
+      try {
+        await login(normalizedEmail, password)
+        navigate('/dashboard', { replace: true })
+        return
+      } catch {
+        navigate('/login', {
+          replace: true,
+          state: { signupSuccess: 'Account created successfully! Sign in to continue.' },
+        })
+      }
     } catch (err) {
       setError(err.message || 'Signup failed. Please try again.')
     } finally {
