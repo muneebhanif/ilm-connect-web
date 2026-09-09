@@ -13,7 +13,7 @@ export default function VerifyEmail() {
   const location = useLocation()
   const navigate = useNavigate()
   const [email, setEmail] = useState((searchParams.get('email') || '').trim().toLowerCase())
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState(location.state?.verificationCode || '')
   const [error, setError] = useState('')
   const [message, setMessage] = useState(location.state?.verificationMessage || '')
   const [verifying, setVerifying] = useState(false)
@@ -67,6 +67,9 @@ export default function VerifyEmail() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       })
+      if (result?.code) {
+        setCode(result.code)
+      }
       setMessage(result?.message || 'A new verification code has been sent.')
       setSecondsLeft(RESEND_DELAY_SECONDS)
     } catch (resendError) {

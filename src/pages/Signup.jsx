@@ -117,23 +117,15 @@ export default function Signup() {
         ...(role === 'student' && studentId.trim() ? { studentId: studentId.trim(), parentId: studentId.trim() } : {}),
       }
       const result = await signup(role, body)
-
-      if (result?.session && result?.user?.id) {
-        await applySession(result.session, result.user.id, result.user)
-        navigate('/dashboard', { replace: true })
-        return
-      }
-
-      try {
-        await login(normalizedEmail, password)
-        navigate('/dashboard', { replace: true })
-        return
-      } catch {
-        navigate('/login', {
-          replace: true,
-          state: { signupSuccess: 'Account created successfully! Sign in to continue.' },
-        })
-      }
+      navigate(`/verify-email?email=${encodeURIComponent(normalizedEmail)}`, {
+        replace: true,
+        state: {
+          verificationMessage:
+            result?.message ||
+            `Your ${role} account was created. Enter the verification code sent to your email or click the link in your email.`,
+          verificationCode: result?.verificationCode || null,
+        },
+      })
     } catch (err) {
       setError(err.message || 'Signup failed. Please try again.')
     } finally {
