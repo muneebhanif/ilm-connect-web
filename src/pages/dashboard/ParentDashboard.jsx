@@ -24,7 +24,7 @@ function formatDate(item) {
 }
 
 export default function ParentDashboard() {
-  const { user, token, signup } = useAuth()
+  const { user, token, signup, updateUser } = useAuth()
   const qc = useQueryClient()
   const { activeTab, setActiveTab } = useOutletContext()
   const [selectedChildId, setSelectedChildId] = useState(null)
@@ -45,36 +45,40 @@ export default function ParentDashboard() {
   const stats = profileQ.data?.stats || {}
   const children = childrenQ.data?.children || []
   const classes = classesQ.data?.classes || []
-  const selectedChild = childDetailQ.data?.child || null
-  const childProgress = childDetailQ.data?.progress || null
+  const childDetail = childDetailQ.data?.child || null
+  const childProgress = childDetailQ.data || null
+  const selectedChild = children.find(c => c.id === selectedChildId) || children[0] || null
 
   const upcoming = useMemo(() => classes.filter(c => { const r = c.scheduled_date || c.scheduled_at || c.date; return r && new Date(r) >= new Date() }), [classes])
 
   useEffect(() => {
-    setProfileForm({ full_name: user?.full_name || '' })
-  }, [user?.full_name])
-
-  useEffect(() => {
-    if (!children.length) {
-      if (selectedChildId) setSelectedChildId(null)
-      return
-    }
-    const hasSelectedChild = children.some((child) => child.id === selectedChildId)
-    if (!hasSelectedChild) {
+    if (!selectedChildId && children.length > 0) {
       setSelectedChildId(children[0].id)
     }
   }, [children, selectedChildId])
 
   useEffect(() => {
-    setCredentialForm({ email: '', password: '' })
-  }, [selectedChildId])
+    setProfileForm({ full_name: user?.full_name || '' })
+  }, [user?.full_name])
+
+  const copyParentId = async () => {
+    if (!user?.id) return
+    try {
+      await navigator.clipboard.writeText(user.id)
+      setCopiedParentId(true)
+      toast.success('Family Link ID copied to clipboard!')
+      setTimeout(() => setCopiedParentId(false), 2500)
+    } catch {
+      toast.error('Failed to copy ID')
+    }
+  }
 
   const addChild = useMutation({ mutationFn: (p) => authFetch(api.addChild(user.id), token, { method: 'POST', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Child added'); setChildForm({ name: '', age: '' }); qc.invalidateQueries({ queryKey: ['parentChildren', user.id] }); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Failed to add child') })
   const deleteChild = useMutation({ mutationFn: (id) => authFetch(api.deleteChild(user.id, id), token, { method: 'DELETE' }), onSuccess: (_, deletedChildId) => { toast.success('Child removed'); if (selectedChildId === deletedChildId) setSelectedChildId(null); qc.invalidateQueries({ queryKey: ['parentChildren', user.id] }); qc.invalidateQueries({ queryKey: ['childDetail', deletedChildId] }) }, onError: (err) => toast.error(err?.message || 'Failed to remove child') })
   const linkStudent = useMutation({
-    mutationFn: (email) => authFetch(api.linkStudent(user.id), token, {
+    mutationFn: (email) => authFetch(api.addChild(user.id), token, {
       method: 'POST',
-      body: JSON.stringify({ email: email.trim() }),
+      body: JSON.stringify({ studentEmail: email.trim().toLowerCase() }),
     }),
     onSuccess: (data) => {
       toast.success(data?.message || 'Student account linked to family successfully!')
@@ -84,8 +88,8 @@ export default function ParentDashboard() {
     },
     onError: (err) => toast.error(err?.message || 'Failed to link student account'),
   })
-  const updateProfile = useMutation({ mutationFn: (p) => authFetch(api.updateParentProfile(user.id), token, { method: 'PUT', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Profile updated'); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Failed to update profile') })
-  const uploadAvatar = useMutation({ mutationFn: async (f) => { const img = await fileToBase64(f); return authFetch(api.uploadProfileImage(user.id), token, { method: 'POST', body: JSON.stringify({ image: img, fileExtension: getFileExtension(f.name) }) }) }, onSuccess: () => { toast.success('Avatar uploaded'); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Upload failed') })
+  const updateProfile = useMutation({ mutationFn: (p) => authFetch(api.updateParentProfile(user.id), token, { method: 'PUT', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Profile updated'); if (profileForm.full_name) updateUser?.({ full_name: profileForm.full_name }); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }); qc.invalidateQueries({ queryKey: ['profile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Failed to update profile') })
+  const uploadAvatar = useMutation({ mutationFn: async (f) => { const img = await fileToBase64(f); return authFetch(api.uploadProfileImage(user.id), token, { method: 'POST', body: JSON.stringify({ image: img, fileExtension: getFileExtension(f.name) }) }) }, onSuccess: (data) => { toast.success('Avatar uploaded'); if (data?.avatar_url) updateUser?.({ avatar_url: data.avatar_url }); qc.invalidateQueries({ queryKey: ['parentProfile', user.id] }); qc.invalidateQueries({ queryKey: ['profile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Upload failed') })
   const reviewMut = useMutation({ mutationFn: (p) => authFetch(api.createReview(), token, { method: 'POST', body: JSON.stringify(p) }), onSuccess: () => toast.success('Review submitted!'), onError: (err) => toast.error(err?.message || 'Failed to submit review') })
   const createChildCredentials = useMutation({
     mutationFn: async () => {

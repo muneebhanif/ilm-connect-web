@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useOutletContext } from 'react-router-dom'
 import {
   Calendar, BookOpen, Clock3, Video, Play, GraduationCap, FileVideo, Search, Star,
-  UserCircle2, ShieldCheck, MonitorPlay, CheckCircle2,
+  UserCircle2, ShieldCheck, MonitorPlay, CheckCircle2, Camera,
 } from 'lucide-react'
 import { useAuth } from '../../lib/auth.jsx'
 import toast from 'react-hot-toast'
@@ -11,6 +11,19 @@ import { api, authFetch } from '../../lib/api.js'
 import { StatCard, SectionCard, EmptyState, StatusPill, ActionButton, TextInput, GridList, PageHeader } from '../../components/dashboard-ui.jsx'
 import MessageCenter from '../../components/MessageCenter.jsx'
 import { SectionRowsSkeleton, SkeletonBlock } from '../../components/skeletons.jsx'
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = (err) => reject(err)
+  })
+}
+
+function getFileExtension(name = '') {
+  return name.split('.').pop() || 'jpg'
+}
 
 
 
@@ -82,9 +95,27 @@ function groupStudentClasses(classes = []) {
 }
 
 export default function StudentDashboard() {
-  const { user, token } = useAuth()
+  const { user, token, updateUser } = useAuth()
+  const qc = useQueryClient()
   const { activeTab } = useOutletContext()
   const [reviewDrafts, setReviewDrafts] = useState({})
+
+  const uploadAvatar = useMutation({
+    mutationFn: async (f) => {
+      const img = await fileToBase64(f)
+      return authFetch(api.uploadProfileImage(user.id), token, {
+        method: 'POST',
+        body: JSON.stringify({ image: img, fileExtension: getFileExtension(f.name) })
+      })
+    },
+    onSuccess: (data) => {
+      toast.success('Avatar uploaded')
+      if (data?.avatar_url) updateUser?.({ avatar_url: data.avatar_url })
+      qc.invalidateQueries({ queryKey: ['studentProfile', user.id] })
+      qc.invalidateQueries({ queryKey: ['profile', user.id] })
+    },
+    onError: (err) => toast.error(err?.message || 'Upload failed')
+  })
 
   const profileQ = useQuery({ queryKey: ['studentProfile', user?.id], queryFn: () => authFetch(api.studentProfile(user.id), token), enabled: !!user?.id && !!token })
   const classesQ = useQuery({ queryKey: ['studentClasses', user?.id], queryFn: () => authFetch(api.studentClasses(user.id), token), enabled: !!user?.id && !!token, refetchInterval: 10000 })
@@ -122,7 +153,7 @@ export default function StudentDashboard() {
           {classesQ.isLoading ? <SectionRowsSkeleton rows={4} itemClassName="h-20" /> : focusClasses.length === 0 ? <EmptyState icon={GraduationCap} title="No active classes" text="Live and upcoming classes will appear here first." /> : <div className="space-y-3">{focusClasses.slice(0, 5).map(c => { const liveMeta = getLiveClassMeta(c); return <div key={c.id} className={`rounded-[24px] border p-4 ${liveMeta.isLive ? 'border-emerald/20 bg-gradient-to-r from-emerald/10 via-white to-teal/10' : 'border-parchment/50 bg-ivory/55'}`}><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><StatusPill tone={liveMeta.tone}>{liveMeta.isLive ? 'live now' : 'coming up'}</StatusPill><span className="text-xs font-semibold uppercase tracking-[0.18em] text-bark/70">{formatClassDateLabel(c.scheduled_date)}</span></div><div className="mt-2 font-semibold text-ink">{c.courses?.title || 'Class'}</div><div className="mt-1 text-sm text-bark">Teacher: {c.courses?.teachers?.profiles?.full_name || 'Teacher'}</div></div><div className="flex flex-col items-end gap-2"><StatusPill tone={liveMeta.tone}>{liveMeta.label}</StatusPill></div></div>{liveMeta.canJoin ? <Link to={`/classroom/${c.id}`} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-emerald px-4 py-2 text-sm font-semibold text-white"><MonitorPlay size={14} /> Join now</Link> : <div className="mt-3 rounded-2xl border border-parchment/50 bg-white px-4 py-3 text-sm text-bark">The join button will appear automatically when the teacher starts this class.</div>}</div>})}</div>}
         </SectionCard>
         <SectionCard title="Student profile">
-          {profileQ.isLoading ? <div className="space-y-4"><SkeletonBlock className="h-20 w-full rounded-2xl" /><div className="grid grid-cols-2 gap-3"><SkeletonBlock className="h-24" /><SkeletonBlock className="h-24" /></div></div> : <div className="rounded-[24px] bg-ivory/55 p-6"><div className="flex items-center gap-4">{student.avatar_url ? <img src={student.avatar_url} alt="" className="h-14 w-14 rounded-2xl object-cover" /> : <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald/10 text-emerald"><UserCircle2 size={24} /></div>}<div><div className="font-display text-2xl font-bold text-ink">{student.name || 'Student'}</div><div className="text-sm text-bark">{student.email || ''}</div></div></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-parchment/50 bg-white p-4"><div className="text-xs uppercase tracking-wider text-bark/70">Age</div><div className="mt-2 text-lg font-semibold text-ink">{student.age || '—'}</div></div><div className="rounded-2xl border border-parchment/50 bg-white p-4"><div className="text-xs uppercase tracking-wider text-bark/70">Access</div><div className="mt-2"><StatusPill tone="emerald">Active</StatusPill></div></div></div></div>}
+          {profileQ.isLoading ? <div className="space-y-4"><SkeletonBlock className="h-20 w-full rounded-2xl" /><div className="grid grid-cols-2 gap-3"><SkeletonBlock className="h-24" /><SkeletonBlock className="h-24" /></div></div> : <div className="rounded-[24px] bg-ivory/55 p-6"><div className="flex items-center gap-4">{(student.avatar_url || user?.avatar_url) ? <img src={student.avatar_url || user?.avatar_url} alt="" className="h-14 w-14 rounded-2xl object-cover" /> : <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald/10 text-emerald"><UserCircle2 size={24} /></div>}<div><div className="font-display text-2xl font-bold text-ink">{student.name || user?.full_name || 'Student'}</div><div className="text-sm text-bark">{student.email || user?.email || ''}</div></div></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-parchment/50 bg-white p-4"><div className="text-xs uppercase tracking-wider text-bark/70">Age</div><div className="mt-2 text-lg font-semibold text-ink">{student.age || '—'}</div></div><div className="rounded-2xl border border-parchment/50 bg-white p-4"><div className="text-xs uppercase tracking-wider text-bark/70">Access</div><div className="mt-2"><StatusPill tone="emerald">Active</StatusPill></div></div></div></div>}
         </SectionCard>
       </div>
     </PageHeader>
@@ -205,8 +236,41 @@ export default function StudentDashboard() {
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <SectionCard title="Identity">
           {profileQ.isLoading ? <div className="space-y-4"><SkeletonBlock className="h-28 w-full rounded-[24px]" /></div> : <div className="space-y-4">
-            <div className="rounded-[24px] bg-ivory/55 p-6"><div className="font-display text-3xl font-bold text-ink">{student.name || 'Student'}</div><div className="mt-1 text-sm text-bark">{student.email || ''}</div></div>
-            <div className="grid gap-4 sm:grid-cols-2"><div className="rounded-2xl border border-parchment/50 bg-white p-4"><div className="text-xs uppercase tracking-wider text-bark/70">Student ID</div><div className="mt-2 text-sm font-semibold text-ink truncate">{student.id || '—'}</div></div><div className="rounded-2xl border border-parchment/50 bg-white p-4"><div className="text-xs uppercase tracking-wider text-bark/70">Age</div><div className="mt-2 text-sm font-semibold text-ink">{student.age || '—'}</div></div></div>
+            <div className="flex items-center gap-4 rounded-[24px] bg-ivory/55 p-6">
+              {(student.avatar_url || user?.avatar_url) ? (
+                <img src={student.avatar_url || user?.avatar_url} alt="" className="h-16 w-16 rounded-2xl object-cover" />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald/10 text-emerald">
+                  <UserCircle2 size={32} />
+                </div>
+              )}
+              <div>
+                <div className="font-display text-2xl font-bold text-ink">{student.name || user?.full_name || 'Student'}</div>
+                <div className="mt-1 text-sm text-bark">{student.email || user?.email || ''}</div>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-parchment/50 bg-white p-4">
+                <div className="text-xs uppercase tracking-wider text-bark/70">Student ID</div>
+                <div className="mt-2 text-sm font-semibold text-ink truncate">{student.id || '—'}</div>
+              </div>
+              <div className="rounded-2xl border border-parchment/50 bg-white p-4">
+                <div className="text-xs uppercase tracking-wider text-bark/70">Age</div>
+                <div className="mt-2 text-sm font-semibold text-ink">{student.age || '—'}</div>
+              </div>
+            </div>
+            <div>
+              <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
+                <Camera size={14} /> Profile photo
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => e.target.files?.[0] && uploadAvatar.mutate(e.target.files[0])}
+                className="block w-full rounded-2xl border border-parchment/60 bg-ivory px-4 py-3 text-sm text-bark file:mr-3 file:rounded-lg file:border-0 file:bg-emerald/10 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-emerald"
+              />
+              {uploadAvatar.isPending && <div className="mt-2"><StatusPill tone="gold">Uploading...</StatusPill></div>}
+            </div>
           </div>}
         </SectionCard>
         <SectionCard title="Learning snapshot">

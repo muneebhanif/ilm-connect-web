@@ -124,12 +124,14 @@ function getVerificationTone(status = 'pending') {
   return 'gold'
 }
 
-function buildProfileChecklist(teacher = {}, documents = [], availability = {}, courses = []) {
+function buildProfileChecklist(teacher = {}, documents = [], availability = {}, courses = [], user = {}) {
   const totalAvailability = Object.values(availability || {}).reduce((sum, slots) => sum + (Array.isArray(slots) ? slots.length : 0), 0)
+  const hasAvatar = Boolean((teacher.avatar_url || user?.avatar_url || '').trim())
+  const hasFullName = Boolean((teacher.full_name || user?.full_name || '').trim())
   return [
-    { label: 'Add your full name', done: Boolean(teacher.full_name?.trim()) },
+    { label: 'Add your full name', done: hasFullName },
     { label: 'Write a teacher bio', done: Boolean(teacher.bio?.trim()) },
-    { label: 'Upload a profile photo', done: Boolean(teacher.avatar_url) },
+    { label: 'Upload a profile photo', done: hasAvatar },
     { label: 'Add subjects', done: Array.isArray(teacher.subjects) && teacher.subjects.length > 0 },
     { label: 'Add languages', done: Array.isArray(teacher.languages) && teacher.languages.length > 0 },
     { label: 'Set your pricing', done: Boolean(Number(teacher.hourly_rate || 0) || Number(teacher.weekly_package_price || 0) || Number(teacher.monthly_package_price || 0)) },
@@ -243,7 +245,7 @@ function ManualPayoutSection({ po, userId, token, qc }) {
 }
 
 export default function TeacherDashboard() {
-  const { user, token } = useAuth()
+  const { user, token, updateUser } = useAuth()
   const qc = useQueryClient()
   const { activeTab, setActiveTab } = useOutletContext()
   const [selectedCourseId, setSelectedCourseId] = useState(null)
@@ -287,7 +289,7 @@ export default function TeacherDashboard() {
   const verificationStatus = docsQ.data?.verification_status || teacher.verification_status || 'pending'
   const totalAvailabilitySlots = Object.values(availabilityDraft).reduce((sum, slots) => sum + slots.length, 0)
   const hasAvailabilityChanges = JSON.stringify(availabilityDraft) !== JSON.stringify(availability)
-  const profileChecklist = buildProfileChecklist(teacher, documents, availability, courses)
+  const profileChecklist = buildProfileChecklist(teacher, documents, availability, courses, user)
   const completedChecklistCount = profileChecklist.filter((item) => item.done).length
   const profileCompletion = Math.round((completedChecklistCount / profileChecklist.length) * 100)
   const remainingChecklist = profileChecklist.filter((item) => !item.done)
@@ -297,8 +299,8 @@ export default function TeacherDashboard() {
   useEffect(() => { setAvailabilityDraft(normalizeAvailabilityMap(teacher.availability || {})) }, [teacher.availability])
 
   // Mutations
-  const updateProfile = useMutation({ mutationFn: (p) => authFetch(api.updateTeacher(user.id), token, { method: 'PUT', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Profile updated'); qc.invalidateQueries({ queryKey: ['teacherPublicProfile', user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
-  const uploadAvatar = useMutation({ mutationFn: async (f) => { const img = await fileToBase64(f); return authFetch(api.uploadProfileImage(user.id), token, { method: 'POST', body: JSON.stringify({ image: img, fileExtension: getFileExtension(f.name) }) }) }, onSuccess: () => { toast.success('Avatar uploaded'); qc.invalidateQueries({ queryKey: ['teacherPublicProfile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Upload failed') })
+  const updateProfile = useMutation({ mutationFn: (p) => authFetch(api.updateTeacher(user.id), token, { method: 'PUT', body: JSON.stringify(p) }), onSuccess: () => { toast.success('Profile updated'); if (profileForm.full_name) updateUser?.({ full_name: profileForm.full_name }); qc.invalidateQueries({ queryKey: ['teacherPublicProfile', user.id] }); qc.invalidateQueries({ queryKey: ['profile', user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
+  const uploadAvatar = useMutation({ mutationFn: async (f) => { const img = await fileToBase64(f); return authFetch(api.uploadProfileImage(user.id), token, { method: 'POST', body: JSON.stringify({ image: img, fileExtension: getFileExtension(f.name) }) }) }, onSuccess: (data) => { toast.success('Avatar uploaded'); if (data?.avatar_url) updateUser?.({ avatar_url: data.avatar_url }); qc.invalidateQueries({ queryKey: ['teacherPublicProfile', user.id] }); qc.invalidateQueries({ queryKey: ['profile', user.id] }) }, onError: (err) => toast.error(err?.message || 'Upload failed') })
   const uploadThumb = useMutation({ mutationFn: async ({ courseId, file }) => { const img = await fileToBase64(file); return authFetch(api.uploadCourseThumbnail(user.id, courseId), token, { method: 'POST', body: JSON.stringify({ image: img, fileExtension: getFileExtension(file.name) }) }) }, onSuccess: () => qc.invalidateQueries({ queryKey: ['teacherCourses', user.id] }) })
   const createCourse = useMutation({ mutationFn: (p) => authFetch(api.createCourse(), token, { method: 'POST', body: JSON.stringify(p) }), onError: (err) => toast.error(mapErr(err?.message)) })
   const updateCourse = useMutation({ mutationFn: ({ courseId, payload }) => authFetch(api.updateCourse(courseId), token, { method: 'PUT', body: JSON.stringify(payload) }), onSuccess: () => { toast.success('Course updated'); qc.invalidateQueries({ queryKey: ['teacherCourses', user.id] }) }, onError: (err) => toast.error(mapErr(err?.message)) })
@@ -818,8 +820,8 @@ export default function TeacherDashboard() {
         <SectionCard title="Teacher profile">
           {profileQ.isLoading ? <div className="space-y-4"><SkeletonBlock className="h-28 w-full rounded-[24px]" /><SkeletonBlock className="h-14 w-full" /></div> : <>
             <div className="mb-6 flex items-center gap-4 rounded-[24px] bg-ivory/60 p-5">
-              {teacher.avatar_url ? <img src={teacher.avatar_url} alt="" className="h-20 w-20 rounded-[24px] object-cover" /> : <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-emerald/10 text-3xl font-bold text-emerald">{(teacher.full_name || 'T')[0]}</div>}
-              <div><div className="font-display text-2xl font-bold text-ink">{teacher.full_name}</div><div className="text-sm text-bark">{teacher.email}</div><div className="mt-2"><StatusPill tone={getVerificationTone(verificationStatus)}>{verificationStatus}</StatusPill></div></div>
+              {(teacher.avatar_url || user?.avatar_url) ? <img src={teacher.avatar_url || user?.avatar_url} alt="" className="h-20 w-20 rounded-[24px] object-cover" /> : <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-emerald/10 text-3xl font-bold text-emerald">{(teacher.full_name || user?.full_name || 'T')[0]}</div>}
+              <div><div className="font-display text-2xl font-bold text-ink">{teacher.full_name || user?.full_name || 'Teacher'}</div><div className="text-sm text-bark">{teacher.email || user?.email || ''}</div><div className="mt-2"><StatusPill tone={getVerificationTone(verificationStatus)}>{verificationStatus}</StatusPill></div></div>
             </div>
             <div className="mb-6 rounded-[24px] border border-parchment/50 bg-white p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">

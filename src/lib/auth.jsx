@@ -194,6 +194,15 @@ export function AuthProvider({ children }) {
     return data
   }
 
+  const updateUser = useCallback((patch = {}) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const next = { ...prev, ...patch }
+      saveUser(next)
+      return next
+    })
+  }, [])
+
   const logout = () => {
     clearAuth()
   }
@@ -201,7 +210,7 @@ export function AuthProvider({ children }) {
   const token = session?.access_token || null
 
   return (
-    <AuthContext.Provider value={{ user, token, session, loading, login, signup, logout, refreshSession }}>
+    <AuthContext.Provider value={{ user, token, session, loading, login, signup, logout, refreshSession, updateUser }}>
       {children}
     </AuthContext.Provider>
   )
