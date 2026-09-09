@@ -6,6 +6,7 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 import { loadStripe } from '@stripe/stripe-js'
 import {
   ArrowLeft,
+  BookOpen,
   Calendar,
   CheckCircle2,
   CreditCard,
@@ -513,7 +514,7 @@ export default function BookTeacher() {
             </div>
 
             {!paymentData ? (
-              <ActionButton onClick={startBooking} icon={CheckCircle2} disabled={isBusy || children.length === 0 || teacherOrChildrenFailed}>
+              <ActionButton onClick={startBooking} icon={CheckCircle2} disabled={isBusy || (!isStudent && children.length === 0) || bookingDataFailed}>
                 {isBusy ? 'Preparing...' : totalAmount > 0 ? 'Continue to payment' : 'Confirm free booking'}
               </ActionButton>
             ) : stripePromise ? (
