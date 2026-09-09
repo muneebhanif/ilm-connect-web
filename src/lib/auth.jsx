@@ -20,14 +20,6 @@ function loadSession() {
   } catch { return null }
 }
 
-function loadUser() {
-  try {
-    const raw = localStorage.getItem(USER_KEY)
-    if (!raw) return null
-    return JSON.parse(raw)
-  } catch { return null }
-}
-
 function saveSession(session) {
   if (session) localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
   else localStorage.removeItem(STORAGE_KEY)
@@ -146,7 +138,7 @@ export function AuthProvider({ children }) {
     const data = await apiFetch(api.login(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
     })
     const sess = data.session
     const userId = data?.user?.id

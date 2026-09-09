@@ -1,9 +1,34 @@
+function createGeometricSvgDataUri(startColor, midColor, endColor, accentColor) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240" viewBox="0 0 600 240">
+    <defs>
+      <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="${startColor}" />
+        <stop offset="50%" stop-color="${midColor}" />
+        <stop offset="100%" stop-color="${endColor}" />
+      </linearGradient>
+      <pattern id="pat" width="48" height="48" patternUnits="userSpaceOnUse">
+        <path d="M24 6 L30 18 L42 24 L30 30 L24 42 L18 30 L6 24 L18 18 Z" fill="none" stroke="${accentColor}" stroke-width="1.2" />
+        <rect x="15" y="15" width="18" height="18" fill="none" stroke="${accentColor}" stroke-width="0.8" transform="rotate(45 24 24)" />
+        <circle cx="24" cy="24" r="3.5" fill="${accentColor}" fill-opacity="0.3" stroke="${accentColor}" stroke-width="0.8" />
+      </pattern>
+      <radialGradient id="glow" cx="85%" cy="20%" r="60%">
+        <stop offset="0%" stop-color="${accentColor}" stop-opacity="0.25" />
+        <stop offset="100%" stop-color="${accentColor}" stop-opacity="0" />
+      </radialGradient>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#bg)" />
+    <rect width="100%" height="100%" fill="url(#glow)" />
+    <rect width="100%" height="100%" fill="url(#pat)" opacity="0.25" />
+  </svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
+
 const SUBJECT_ART = {
-  quran: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=1200&q=80&auto=format&fit=crop',
-  tajweed: 'https://images.unsplash.com/photo-1542816417-0983c9c9ad53?w=1200&q=80&auto=format&fit=crop',
-  arabic: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?w=1200&q=80&auto=format&fit=crop',
-  islamic: 'https://images.unsplash.com/photo-1585036156171-384164a8c159?w=1200&q=80&auto=format&fit=crop',
-  hifz: 'https://images.unsplash.com/photo-1519817914152-22f90e4b0a4f?w=1200&q=80&auto=format&fit=crop',
+  quran: createGeometricSvgDataUri('#064e3b', '#047857', '#0f766e', '#fbbf24'),
+  tajweed: createGeometricSvgDataUri('#064e3b', '#059669', '#0d9488', '#f59e0b'),
+  arabic: createGeometricSvgDataUri('#0c2461', '#1e3799', '#0a3d62', '#38bdf8'),
+  islamic: createGeometricSvgDataUri('#3b0764', '#6b21a8', '#86198f', '#f472b6'),
+  hifz: createGeometricSvgDataUri('#0f172a', '#1e293b', '#78350f', '#f59e0b'),
 }
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://backend-ilm.vercel.app').replace(/\/$/, '')
@@ -31,6 +56,8 @@ export const api = {
   signupParent: () => `${API_URL}/api/signup/parent`,
   signupTeacher: () => `${API_URL}/api/signup/teacher`,
   signupStudent: () => `${API_URL}/api/signup/student`,
+  verifyEmail: () => `${API_URL}/api/verify-email`,
+  resendVerification: () => `${API_URL}/api/resend-verification`,
   verifySession: () => `${API_URL}/api/verify-session`,
   refreshToken: () => `${API_URL}/api/refresh-token`,
   parentProfile: (id) => `${API_URL}/api/parent/${id}/profile`,
@@ -94,6 +121,9 @@ export function getCourseThumbnail(course = {}) {
 }
 
 export function getTeacherCoverImage(teacher = {}) {
+  if (teacher.cover_photo_url || teacher.cover_image || teacher.cover_url) {
+    return teacher.cover_photo_url || teacher.cover_image || teacher.cover_url
+  }
   const primarySubject = Array.isArray(teacher.subjects) && teacher.subjects.length > 0
     ? teacher.subjects[0]
     : teacher.subject || teacher.title
@@ -140,7 +170,10 @@ export async function apiFetch(url, options = {}) {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body?.error || `API Error: ${res.status}`)
+    const error = new Error(body?.error || `API Error: ${res.status}`)
+    error.code = body?.code
+    error.status = res.status
+    throw error
   }
   return res.json()
 }

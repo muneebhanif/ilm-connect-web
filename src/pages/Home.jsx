@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { api, apiFetch, getCourseThumbnail, getTeacherCoverImage, normalizeTeacher } from '../lib/api'
 import { girlsArt, happyHijabiArt, happyManArt, happyMomArt, knowledgeJourneyArt, learningLiveClassArt, teacherSpotlightArt } from '../lib/artwork'
 import { PublicCardsSkeleton } from '../components/skeletons.jsx'
+import TeacherCoverBanner from '../components/TeacherCoverBanner.jsx'
 import {
   BookOpen,
   Video,
@@ -60,28 +61,37 @@ const steps = [
 
 const roleCards = [
   {
+    roleKey: 'parent',
     title: 'For Parents',
     icon: Users,
     desc: 'Book trusted teachers, manage children profiles, and track class activity from one dashboard.',
     points: ['Book live sessions', 'Manage children accounts', 'Monitor upcoming classes'],
     accent: 'teal',
     art: happyMomArt,
+    cta: 'Join as Parent',
+    to: '/signup?role=parent',
   },
   {
+    roleKey: 'student',
     title: 'For Students',
     icon: GraduationCap,
     desc: 'Join scheduled classes, revisit recordings, and build consistency with guided learning.',
     points: ['Attend live lessons', 'Access recordings', 'Follow structured courses'],
     accent: 'purple',
     art: happyHijabiArt,
+    cta: 'Join as Student',
+    to: '/signup?role=student',
   },
   {
+    roleKey: 'teacher',
     title: 'For Teachers',
     icon: Library,
     desc: 'Teach live, publish courses, manage schedules, and build a trusted teaching profile.',
     points: ['Run live classes', 'Publish course content', 'Manage students and schedule'],
     accent: 'emerald',
     art: happyManArt,
+    cta: 'Teach on IlmConnect',
+    to: '/signup?role=teacher',
   },
 ]
 
@@ -89,7 +99,6 @@ function FeaturedTeacherCard({ teacher, index }) {
   const name = teacher.full_name || 'Teacher'
   const subjects = Array.isArray(teacher.subjects) ? teacher.subjects.filter(Boolean) : []
   const rating = Number(teacher.rating || teacher.average_rating || 0)
-  const cover = getTeacherCoverImage(teacher)
 
   return (
     <Motion.div
@@ -100,28 +109,24 @@ function FeaturedTeacherCard({ teacher, index }) {
       custom={index}
       className="group overflow-hidden rounded-2xl border-2 border-parchment bg-white transition-all duration-300 hover:-translate-y-1.5 hover:border-emerald/30 hover:shadow-[0_12px_40px_-12px_rgba(88,204,2,0.2)]"
     >
-      <div className="relative h-36 overflow-hidden">
-        <img src={cover} alt="" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
-        <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent" />
-        <div className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full bg-white/95 px-3 py-1 text-[11px] font-extrabold text-emerald border-2 border-emerald/20">
-          <CheckCircle2 size={12} /> Verified
-        </div>
-      </div>
-      <div className="p-6 pt-0">
-        <div className="-mt-8 mb-4 flex items-start gap-4">
-          <div className="relative flex-shrink-0 rounded-2xl border-4 border-white bg-white shadow-lg">
+      <TeacherCoverBanner teacher={teacher} className="h-36" />
+      <div className="px-6 pb-6 pt-0">
+        <div className="mb-4 flex items-start gap-4">
+          <div className="-mt-10 relative flex-shrink-0 rounded-2xl border-4 border-white bg-white shadow-lg z-10">
             {teacher.avatar_url ? (
               <img src={teacher.avatar_url} alt={name} className="h-18 w-18 rounded-xl object-cover" />
             ) : (
-              <div className="flex h-18 w-18 items-center justify-center rounded-xl bg-emerald/10 text-xl font-extrabold text-emerald">
+              <div className="flex h-18 w-18 items-center justify-center rounded-xl bg-emerald-100 text-2xl font-black text-emerald-700">
                 {name.charAt(0)}
               </div>
             )}
           </div>
-          <div className="min-w-0 flex-1 pt-8">
-            <h3 className="truncate font-display text-lg font-extrabold text-ink">{name}</h3>
-            <div className="mt-1 flex items-center gap-1 text-sm font-bold text-gold">
-              <Star size={14} className="fill-current" /> {rating.toFixed(1)}
+          <div className="min-w-0 flex-1 pt-2">
+            <h3 className="truncate font-display text-lg font-extrabold text-slate-900 group-hover:text-emerald transition-colors">{name}</h3>
+            <div className="mt-1 flex items-center gap-1.5">
+              <Star size={14} className={rating > 0 ? "text-amber-500 fill-amber-400 drop-shadow-[0_1px_2px_rgba(245,158,11,0.25)]" : "text-amber-300/80 fill-amber-50"} />
+              <span className="text-xs font-extrabold text-slate-800">{rating > 0 ? rating.toFixed(1) : '0.0'}</span>
+              <span className="text-xs font-semibold text-slate-500">{teacher.review_count ? `(${teacher.review_count})` : '(New)'}</span>
             </div>
           </div>
         </div>
@@ -350,6 +355,15 @@ export default function Home() {
                         <span>{point}</span>
                       </div>
                     ))}
+                  </div>
+                  <div className="mt-8 pt-4 border-t border-parchment/60">
+                    <Link
+                      to={role.to}
+                      className="inline-flex items-center gap-2 text-sm font-extrabold text-ink hover:text-emerald group transition-colors"
+                    >
+                      <span>{role.cta}</span>
+                      <ArrowRight size={15} className="transition-transform group-hover:translate-x-1 text-emerald" />
+                    </Link>
                   </div>
                 </Motion.div>
               )

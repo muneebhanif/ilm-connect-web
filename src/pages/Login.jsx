@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/auth.jsx'
-import { motion } from 'framer-motion'
+import { motion as Motion } from 'framer-motion'
 import { Mail, Lock, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react'
 import { happyHijabiArt } from '../lib/artwork'
 import { AuthButtonSkeleton } from '../components/skeletons.jsx'
@@ -27,6 +27,12 @@ export default function Login() {
       await login(email, password)
       navigate('/dashboard', { replace: true })
     } catch (err) {
+      if (err.code === 'EMAIL_NOT_VERIFIED') {
+        navigate(`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`, {
+          state: { verificationMessage: err.message },
+        })
+        return
+      }
       setError(err.message || 'Invalid credentials')
     } finally { setLoading(false) }
   }
@@ -39,7 +45,7 @@ export default function Login() {
       <div className="pointer-events-none absolute right-6 bottom-8 hidden w-24 lg:block animate-breathe art-breathing opacity-90" style={{ animationDelay: '1.1s' }}>
         <img src={happyHijabiArt} alt="Learner illustration" className="h-full w-full object-contain" />
       </div>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+      <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
         className="relative w-full max-w-md">
         <div className="bg-white rounded-2xl p-8 border-2 border-parchment shadow-xl">
           <div className="text-center mb-8">
@@ -96,7 +102,7 @@ export default function Login() {
             <Link to="/signup" className="text-emerald font-extrabold hover:underline">Sign Up</Link>
           </p>
         </div>
-      </motion.div>
+      </Motion.div>
     </div>
   )
 }

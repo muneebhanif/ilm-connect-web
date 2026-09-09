@@ -43,8 +43,16 @@ export default function Footer() {
           <div>
             <h4 className="text-xs font-black uppercase tracking-[0.22em] text-gold">Start</h4>
             <ul className="mt-5 space-y-3">
-              {['Parents', 'Teachers', 'Students'].map((role) => (
-                <li key={role}><Link to="/signup" className="text-sm font-bold text-white/62 transition hover:text-emerald-light">For {role}</Link></li>
+              {[
+                { label: 'For Parents', role: 'parent' },
+                { label: 'For Students', role: 'student' },
+                { label: 'For Teachers', role: 'teacher' },
+              ].map((item) => (
+                <li key={item.role}>
+                  <Link to={`/signup?role=${item.role}`} className="text-sm font-bold text-white/62 transition hover:text-emerald-light">
+                    {item.label}
+                  </Link>
+                </li>
               ))}
             </ul>
           </div>

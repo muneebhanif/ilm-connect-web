@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { api, apiFetch, getTeacherCoverImage, normalizeTeacher } from '../lib/api'
+import { api, apiFetch, normalizeTeacher } from '../lib/api'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Star, CheckCircle, MapPin, BookOpen, Languages, Clock3, ArrowRight } from 'lucide-react'
+import { Search, Star, MapPin, BookOpen, Languages, Clock3, ArrowRight } from 'lucide-react'
 import { PublicCardsSkeleton } from '../components/skeletons.jsx'
+import TeacherCoverBanner from '../components/TeacherCoverBanner.jsx'
 
 const TEACHERS_HERO_PHOTO = 'https://images.unsplash.com/photo-1564769625905-50e93615e769?w=1600&q=80&auto=format&fit=crop'
 
@@ -12,15 +13,37 @@ const fadeUp = {
   hidden: { opacity: 0, y: 30 },
   visible: (i = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08, duration: 0.6, ease: [0.16, 1, 0.3, 1] } }),
 }
-const subjects = ['All', 'Quran', 'Tajweed', 'Arabic', 'Islamic Studies', 'Hifz']
+const subjects = ['All', 'Arabic', 'Quran']
 
-function StarRating({ rating }) {
+function StarRating({ rating = 0, reviewCount = 0 }) {
+  const numericRating = Number(rating) || 0
+  const count = Number(reviewCount) || 0
+  const rounded = Math.round(numericRating)
+
   return (
-    <div className="flex items-center gap-0.5">
-      {[1,2,3,4,5].map(i => (
-        <Star key={i} size={14} className={i <= Math.round(rating) ? 'text-gold fill-gold' : 'text-parchment'} />
-      ))}
-      <span className="text-bark text-xs ml-1">({rating?.toFixed(1) || '0.0'})</span>
+    <div className="flex items-center gap-1 mt-1">
+      <div className="flex items-center gap-0.5">
+        {[1, 2, 3, 4, 5].map(i => {
+          const isFilled = i <= rounded && numericRating > 0
+          return (
+            <Star
+              key={i}
+              size={14}
+              className={
+                isFilled
+                  ? 'text-amber-500 fill-amber-400 drop-shadow-[0_1px_2px_rgba(245,158,11,0.25)]'
+                  : 'text-amber-300/80 fill-amber-50'
+              }
+            />
+          )
+        })}
+      </div>
+      <span className="text-slate-800 font-extrabold text-xs ml-1">
+        {numericRating > 0 ? numericRating.toFixed(1) : '0.0'}
+      </span>
+      <span className="text-slate-500 font-semibold text-xs">
+        {count > 0 ? `(${count})` : '(New)'}
+      </span>
     </div>
   )
 }
@@ -32,43 +55,34 @@ function TeacherCard({ teacher, index }) {
   const bio = teacher.bio || teacher.about || ''
   const hourlyRate = teacher.hourly_rate || teacher.rate
   const avatar = teacher.avatar_url
-  const cover = getTeacherCoverImage(teacher)
 
   return (
     <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-30px' }} variants={fadeUp} custom={index}
       className="group bg-white rounded-2xl border-2 border-parchment overflow-hidden hover:border-emerald/30 hover:shadow-[0_12px_40px_-12px_rgba(88,204,2,0.2)] transition-all duration-300 hover:-translate-y-1.5">
-      <div className="relative h-36 overflow-hidden">
-        <img src={cover} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-        <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/15 to-transparent" />
-        <div className="absolute top-4 left-4 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/85 px-3 py-1 text-[11px] font-bold text-emerald backdrop-blur-sm">
-            <CheckCircle size={12} /> Verified
-          </span>
-          {!!teacher.review_count && (
-            <span className="rounded-full bg-ink/55 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
-              {teacher.review_count} reviews
-            </span>
-          )}
-        </div>
-      </div>
-      <div className="p-6 pt-0">
-        <div className="-mt-8 flex items-start gap-4 mb-4">
-          <div className="relative flex-shrink-0 rounded-[20px] border-4 border-white shadow-lg">
+      
+      {/* High-Contrast Dynamic Islamic Geometric Banner */}
+      <TeacherCoverBanner teacher={teacher} className="h-36" />
+
+      <div className="px-6 pb-6 pt-0">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="-mt-10 relative flex-shrink-0 rounded-[20px] border-4 border-white bg-white shadow-lg z-10">
             {avatar ? (
-              <img src={avatar} alt={name} className="w-18 h-18 rounded-[18px] object-cover bg-white" />
+              <img src={avatar} alt={name} className="w-18 h-18 rounded-[16px] object-cover bg-white" />
             ) : (
-              <div className="w-18 h-18 rounded-[18px] bg-gradient-to-br from-emerald/20 to-teal/20 flex items-center justify-center">
-                <span className="font-display font-bold text-xl text-emerald">{name.charAt(0)}</span>
+              <div className="w-18 h-18 rounded-[16px] bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
+                <span className="font-display font-black text-2xl text-emerald-700">{name.charAt(0)}</span>
               </div>
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-display font-bold text-ink text-lg truncate">{name}</h3>
-            <StarRating rating={rating} />
+          <div className="flex-1 min-w-0 pt-2">
+            <h3 className="font-display font-extrabold text-slate-900 text-lg leading-snug truncate group-hover:text-emerald transition-colors" title={name}>
+              {name}
+            </h3>
+            <StarRating rating={rating} reviewCount={teacher.review_count} />
             {tSubjects.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {tSubjects.slice(0, 3).map(s => (
-                  <span key={s} className="text-[10px] font-semibold text-emerald bg-emerald/8 px-2 py-0.5 rounded-md uppercase tracking-wide">{s}</span>
+                  <span key={s} className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md uppercase tracking-wide">{s}</span>
                 ))}
               </div>
             )}
@@ -130,7 +144,7 @@ export default function Teachers() {
             className="inline-flex items-center gap-2 px-4 py-2 bg-white/15 border-2 border-white/20 rounded-full mb-6">
             <span className="text-white text-xs font-extrabold tracking-wide uppercase">Verified Educators</span>
           </motion.div>
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="font-display text-4xl sm:text-5xl font-black text-white tracking-tight mb-4">
+          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="font-display text-2xl sm:text-3xl font-black text-white tracking-tight mb-4">
             Find Your Teacher
           </motion.h1>
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-emerald-light text-lg max-w-xl mx-auto font-semibold">

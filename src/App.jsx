@@ -13,6 +13,7 @@ import About from './pages/About'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
+import VerifyEmail from './pages/VerifyEmail'
 import BookTeacher from './pages/BookTeacher'
 import ParentDashboard from './pages/dashboard/ParentDashboard'
 import TeacherDashboard from './pages/dashboard/TeacherDashboard'
@@ -66,7 +67,12 @@ export default function App() {
         <Route path="/about" element={<About />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/signup-student" element={<Navigate to="/signup?role=student" replace />} />
+        <Route path="/signup/student" element={<Navigate to="/signup?role=student" replace />} />
+        <Route path="/signup-parent" element={<Navigate to="/signup?role=parent" replace />} />
+        <Route path="/signup-teacher" element={<Navigate to="/signup?role=teacher" replace />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
       </Route>
 
       {/* Dashboard (separate layout with sidebar) */}

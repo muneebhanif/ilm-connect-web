@@ -82,7 +82,7 @@ export default function ParentDashboard() {
       })
     },
     onSuccess: () => {
-      toast.success('Child credentials created successfully')
+      toast.success('Student credentials created. A verification code was sent to the student email.')
       setCredentialForm({ email: '', password: '' })
       qc.invalidateQueries({ queryKey: ['parentChildren', user.id] })
       qc.invalidateQueries({ queryKey: ['childDetail', selectedChild?.id] })
