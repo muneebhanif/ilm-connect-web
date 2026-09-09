@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Mobile APK binaries (exceeds GitHub 100MB push limit; host via GitHub Releases or external CDN)
+*.apk
+apk/

@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import { motion as Motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { QRCodeSVG } from 'qrcode.react'
+import toast from 'react-hot-toast'
 import { api, apiFetch, getCourseThumbnail, getTeacherCoverImage, normalizeTeacher } from '../lib/api'
 import { girlsArt, happyHijabiArt, happyManArt, happyMomArt, knowledgeJourneyArt, learningLiveClassArt, phoneMockupArt, teacherSpotlightArt } from '../lib/artwork'
 import { PublicCardsSkeleton } from '../components/skeletons.jsx'
@@ -28,6 +31,9 @@ import {
   Smartphone,
   Bell,
   Download,
+  QrCode,
+  Copy,
+  Check,
 } from 'lucide-react'
 
 const fadeUp = {
@@ -154,6 +160,22 @@ function FeaturedTeacherCard({ teacher, index }) {
 }
 
 export default function Home() {
+  const [copiedApkLink, setCopiedApkLink] = useState(false)
+  const apkDownloadUrl = import.meta.env.VITE_APK_DOWNLOAD_URL || '/apk/ilm-connect-v1.apk'
+  const fullApkUrl = apkDownloadUrl.startsWith('http')
+    ? apkDownloadUrl
+    : `${typeof window !== 'undefined' ? window.location.origin : 'https://ilm-connect-web.vercel.app'}${apkDownloadUrl}`
+
+  const handleCopyApkLink = (e) => {
+    e?.preventDefault?.()
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(fullApkUrl)
+      setCopiedApkLink(true)
+      toast.success('APK download link copied!')
+      setTimeout(() => setCopiedApkLink(false), 2500)
+    }
+  }
+
   const { data: teachersData, isLoading: teachersLoading } = useQuery({
     queryKey: ['home-teachers'],
     queryFn: () => apiFetch(api.teachers()),
@@ -540,44 +562,74 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* App Store Buttons */}
-              <div className="mt-8 flex flex-wrap items-center gap-4">
-                <a
-                  href="#download-app"
-                  onClick={(e) => { e.preventDefault(); alert('IlmConnect Mobile App is available for iOS & Android. Download links and Expo build will be dispatched.'); }}
-                  className="group flex items-center gap-3.5 rounded-2xl bg-ink px-5 py-3.5 text-white transition-all duration-300 hover:bg-ink-soft hover:shadow-lg hover:-translate-y-0.5"
-                >
-                  <svg className="h-7 w-7 fill-current" viewBox="0 0 24 24">
-                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.93-2.85-.9.04-1.99.6-2.64 1.36-.58.67-1.09 1.74-.95 2.77.99.08 2.03-.53 2.66-1.28z" />
-                  </svg>
-                  <div className="text-left">
-                    <div className="text-[10px] uppercase font-bold tracking-wider text-parchment/70">Download on the</div>
-                    <div className="text-sm font-black tracking-wide">App Store</div>
+              {/* Direct APK Download & QR Code Section */}
+              <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-5">
+                {/* Download Button */}
+                <div className="flex flex-col gap-2">
+                  <a
+                    href={apkDownloadUrl}
+                    download="ilm-connect-v1.apk"
+                    className="group inline-flex items-center justify-center gap-3.5 rounded-2xl bg-emerald px-6 py-4 text-white font-extrabold shadow-lg shadow-emerald/25 transition-all duration-300 hover:bg-emerald-deep hover:shadow-xl hover:-translate-y-0.5"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white group-hover:scale-110 transition-transform">
+                      <Download size={22} />
+                    </div>
+                    <div className="text-left">
+                      <div className="text-[11px] font-black uppercase tracking-wider text-emerald-pale">Direct Download</div>
+                      <div className="text-base font-black">Download Android APK</div>
+                    </div>
+                  </a>
+                  <div className="flex items-center justify-between px-2 text-[11px] font-bold text-bark">
+                    <span>v1.0.0</span>
+                    <span>•</span>
+                    <span>Android 8.0+</span>
+                    <span>•</span>
+                    <span>~380 MB</span>
                   </div>
-                </a>
+                </div>
 
-                <a
-                  href="#download-app"
-                  onClick={(e) => { e.preventDefault(); alert('IlmConnect Mobile App is available for iOS & Android. Download links and Expo build will be dispatched.'); }}
-                  className="group flex items-center gap-3.5 rounded-2xl bg-ink px-5 py-3.5 text-white transition-all duration-300 hover:bg-ink-soft hover:shadow-lg hover:-translate-y-0.5"
-                >
-                  <svg className="h-7 w-7 fill-current" viewBox="0 0 24 24">
-                    <path d="M3.609 1.814L13.793 12 3.61 22.186a2.213 2.213 0 0 1-.365-1.229V3.043c0-.462.133-.892.364-1.229zm10.89 10.89l2.308 2.309-12.04 6.842 9.732-9.151zm0-1.408L4.767 2.145l12.04 6.842-2.308 2.309zm1.415.704l2.964 1.684a1.865 1.865 0 0 0 0-3.368l-2.964 1.684z" />
-                  </svg>
-                  <div className="text-left">
-                    <div className="text-[10px] uppercase font-bold tracking-wider text-parchment/70">GET IT ON</div>
-                    <div className="text-sm font-black tracking-wide">Google Play</div>
+                {/* QR Code Container */}
+                <div className="flex items-center gap-4 rounded-2xl border-2 border-parchment/80 bg-white/95 p-3.5 shadow-md backdrop-blur-md">
+                  <div className="rounded-xl border border-parchment/70 bg-white p-2 shadow-sm">
+                    <QRCodeSVG
+                      value={fullApkUrl}
+                      size={84}
+                      level="M"
+                      includeMargin={false}
+                      fgColor="#064e3b"
+                    />
                   </div>
-                </a>
+                  <div className="max-w-[170px]">
+                    <div className="flex items-center gap-1.5 text-xs font-black text-ink">
+                      <QrCode size={14} className="text-emerald" /> Scan & Download
+                    </div>
+                    <p className="mt-1 text-[11px] leading-tight text-bark">
+                      Scan with your phone camera to download APK directly to your phone.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleCopyApkLink}
+                      className="mt-2 inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald hover:text-emerald-deep transition-colors"
+                    >
+                      {copiedApkLink ? <Check size={12} /> : <Copy size={12} />}
+                      {copiedApkLink ? 'Link copied!' : 'Copy download link'}
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-                <div className="flex items-center gap-3 border-l-2 border-parchment pl-4 text-xs font-bold text-bark">
-                  <div className="flex text-amber-500 font-black">
-                    ★ ★ ★ ★ ★
-                  </div>
-                  <div>
-                    <span className="text-ink font-extrabold">4.9/5 Mobile Rating</span>
-                    <div className="text-[11px] text-bark font-semibold">Free on iOS & Android</div>
-                  </div>
+              <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-parchment/70 pt-5">
+                <div className="flex items-center gap-2 text-xs font-bold text-ink-soft">
+                  <CheckCircle2 size={15} className="text-emerald" />
+                  <span>No Play Store login required</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-bold text-ink-soft">
+                  <CheckCircle2 size={15} className="text-emerald" />
+                  <span>Direct 1-tap install</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-bold text-bark ml-auto">
+                  <span className="text-amber-500 font-black">★ ★ ★ ★ ★</span>
+                  <span className="font-extrabold text-ink">4.9/5 Rating</span>
                 </div>
               </div>
             </Motion.div>
