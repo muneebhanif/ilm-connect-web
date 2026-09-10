@@ -34,6 +34,7 @@ import {
   QrCode,
   Copy,
   Check,
+  ExternalLink,
 } from 'lucide-react'
 
 const fadeUp = {
@@ -161,17 +162,16 @@ function FeaturedTeacherCard({ teacher, index }) {
 
 export default function Home() {
   const [copiedApkLink, setCopiedApkLink] = useState(false)
-  const apkDownloadUrl = import.meta.env.VITE_APK_DOWNLOAD_URL || '/apk/ilm-connect-v1.apk'
-  const fullApkUrl = apkDownloadUrl.startsWith('http')
-    ? apkDownloadUrl
-    : `${typeof window !== 'undefined' ? window.location.origin : 'https://ilm-connect-web.vercel.app'}${apkDownloadUrl}`
+  const expoBuildUrl = import.meta.env.VITE_EXPO_BUILD_URL || 'https://expo.dev/accounts/cruxys-organization/projects/ilm-connect-m37u6hxad-spozk8nfkby/builds/b50d1b37-aff5-40c8-9f63-b5139c513735'
+  const apkDownloadUrl = import.meta.env.VITE_APK_DOWNLOAD_URL || 'https://expo.dev/artifacts/eas/cCbYMaT7YQ33YnsJ0MGCCsNy3_I6WGubRfS98l1kWFo.apk'
+  const [qrTarget, setQrTarget] = useState('expo') // 'expo' | 'direct'
+  const activeQrUrl = qrTarget === 'expo' ? expoBuildUrl : apkDownloadUrl
 
-  const handleCopyApkLink = (e) => {
-    e?.preventDefault?.()
+  const handleCopyLink = (url, label = 'Link') => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(fullApkUrl)
+      navigator.clipboard.writeText(url)
       setCopiedApkLink(true)
-      toast.success('APK download link copied!')
+      toast.success(`${label} copied!`)
       setTimeout(() => setCopiedApkLink(false), 2500)
     }
   }
@@ -564,11 +564,13 @@ export default function Home() {
 
               {/* Direct APK Download & QR Code Section */}
               <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-5">
-                {/* Download Button */}
-                <div className="flex flex-col gap-2">
+                {/* Download Buttons Group */}
+                <div className="flex flex-col gap-2.5">
                   <a
                     href={apkDownloadUrl}
-                    download="ilm-connect-v1.apk"
+                    download="ilm-connect.apk"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="group inline-flex items-center justify-center gap-3.5 rounded-2xl bg-emerald px-6 py-4 text-white font-extrabold shadow-lg shadow-emerald/25 transition-all duration-300 hover:bg-emerald-deep hover:shadow-xl hover:-translate-y-0.5"
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white group-hover:scale-110 transition-transform">
@@ -579,41 +581,75 @@ export default function Home() {
                       <div className="text-base font-black">Download Android APK</div>
                     </div>
                   </a>
+
+                  <a
+                    href={expoBuildUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald/25 bg-emerald/5 px-4 py-2 text-xs font-bold text-emerald hover:bg-emerald/10 transition-colors"
+                  >
+                    <ExternalLink size={13} />
+                    <span>View Expo Build & Install Page</span>
+                  </a>
+
                   <div className="flex items-center justify-between px-2 text-[11px] font-bold text-bark">
-                    <span>v1.0.0</span>
+                    <span>EAS Build</span>
                     <span>•</span>
                     <span>Android 8.0+</span>
                     <span>•</span>
-                    <span>~380 MB</span>
+                    <span>Direct Install</span>
                   </div>
                 </div>
 
-                {/* QR Code Container */}
-                <div className="flex items-center gap-4 rounded-2xl border-2 border-parchment/80 bg-white/95 p-3.5 shadow-md backdrop-blur-md">
-                  <div className="rounded-xl border border-parchment/70 bg-white p-2 shadow-sm">
-                    <QRCodeSVG
-                      value={fullApkUrl}
-                      size={84}
-                      level="M"
-                      includeMargin={false}
-                      fgColor="#064e3b"
-                    />
-                  </div>
-                  <div className="max-w-[170px]">
+                {/* QR Code Container with Expo & Direct toggle */}
+                <div className="flex flex-col gap-2.5 rounded-2xl border-2 border-parchment/80 bg-white/95 p-3.5 shadow-md backdrop-blur-md">
+                  <div className="flex items-center justify-between gap-2 border-b border-parchment/60 pb-2">
                     <div className="flex items-center gap-1.5 text-xs font-black text-ink">
-                      <QrCode size={14} className="text-emerald" /> Scan & Download
+                      <QrCode size={14} className="text-emerald" /> Scan & Install
                     </div>
-                    <p className="mt-1 text-[11px] leading-tight text-bark">
-                      Scan with your phone camera to download APK directly to your phone.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleCopyApkLink}
-                      className="mt-2 inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald hover:text-emerald-deep transition-colors"
-                    >
-                      {copiedApkLink ? <Check size={12} /> : <Copy size={12} />}
-                      {copiedApkLink ? 'Link copied!' : 'Copy download link'}
-                    </button>
+                    <div className="flex items-center rounded-lg bg-surface-subtle p-0.5 text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setQrTarget('expo')}
+                        className={`rounded-md px-2 py-0.5 transition-all ${qrTarget === 'expo' ? 'bg-emerald text-white shadow-xs' : 'text-bark hover:text-ink'}`}
+                      >
+                        Expo Build
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setQrTarget('direct')}
+                        className={`rounded-md px-2 py-0.5 transition-all ${qrTarget === 'direct' ? 'bg-emerald text-white shadow-xs' : 'text-bark hover:text-ink'}`}
+                      >
+                        Direct APK
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3.5">
+                    <div className="rounded-xl border border-parchment/70 bg-white p-2 shadow-sm shrink-0">
+                      <QRCodeSVG
+                        value={activeQrUrl}
+                        size={84}
+                        level="M"
+                        includeMargin={false}
+                        fgColor="#064e3b"
+                      />
+                    </div>
+                    <div className="max-w-[170px]">
+                      <p className="text-[11px] leading-tight text-bark">
+                        {qrTarget === 'expo'
+                          ? 'Scan to open the Expo install page on your mobile device.'
+                          : 'Scan to directly download the APK file to your phone.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyLink(activeQrUrl, qrTarget === 'expo' ? 'Expo build link' : 'APK download link')}
+                        className="mt-2 inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald hover:text-emerald-deep transition-colors"
+                      >
+                        {copiedApkLink ? <Check size={12} /> : <Copy size={12} />}
+                        {copiedApkLink ? 'Link copied!' : 'Copy link'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
